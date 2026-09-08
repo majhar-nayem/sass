@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.next/
+.turbo/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.DS_Store
+# packages/spec/generated IS committed on purpose: CI diffs it to catch a hand-edited
+# generated file, and a PR that changes the model-facing schema should show that change.

@@ -1,0 +1,40 @@
+name: CI
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: awning
+          POSTGRES_PASSWORD: awning
+          POSTGRES_DB: awning
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://awning:awning@localhost:5432/awning?schema=public
+      DIRECT_URL: postgresql://awning:awning@localhost:5432/awning?schema=public
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm gen:spec
+      # Generated artefacts must match their source. If this fails, someone
+      # hand-edited a generated file. See docs/05-COMPONENTS.md §1.
+      - run: git diff --exit-code -- packages/spec/generated || (echo "::error::generated spec files are stale — run pnpm gen:spec" && exit 1)
+
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm db:migrate
+      - run: pnpm test

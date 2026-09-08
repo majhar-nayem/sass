@@ -1,0 +1,32 @@
+# F-02 — local dev services. Production uses Neon (Sydney) and Upstash.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: awning
+      POSTGRES_PASSWORD: awning
+      POSTGRES_DB: awning
+    ports: ['5432:5432']
+    volumes: ['awning_pg:/var/lib/postgresql/data']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U awning']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports: ['6379:6379']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  # Catches every outbound email in development. UI at http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ['1025:1025', '8025:8025']
+
+volumes:
+  awning_pg:
