@@ -1,0 +1,481 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://awning.au/schema/website-spec/v1.json",
+  "title": "WebsiteSpecification",
+  "description": "The complete, renderable description of one tenant website. This is the ONLY artefact the AI may produce. The renderer accepts nothing else.",
+  "type": "object",
+  "required": ["specVersion", "site", "theme", "pages"],
+  "additionalProperties": false,
+
+  "properties": {
+    "specVersion": { "const": 1 },
+
+    "site": {
+      "type": "object",
+      "required": ["businessName", "industry", "style"],
+      "additionalProperties": false,
+      "properties": {
+        "businessName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "tagline":      { "type": "string", "maxLength": 140 },
+        "industry":     { "$ref": "#/$defs/industry" },
+        "style":        { "$ref": "#/$defs/style" },
+        "tone":         { "enum": ["friendly","professional","premium","warm","direct","playful"], "default": "friendly" },
+        "logoAssetId":  { "$ref": "#/$defs/assetId" },
+        "faviconAssetId": { "$ref": "#/$defs/assetId" },
+        "locale":       { "const": "en-AU" },
+        "currency":     { "const": "AUD" },
+        "showAbnInFooter": { "type": "boolean", "default": true }
+      }
+    },
+
+    "theme": {
+      "type": "object",
+      "required": ["primary", "secondary", "accent", "neutral", "headingFont", "bodyFont"],
+      "additionalProperties": false,
+      "properties": {
+        "primary":     { "$ref": "#/$defs/hex" },
+        "secondary":   { "$ref": "#/$defs/hex" },
+        "accent":      { "$ref": "#/$defs/hex" },
+        "neutral":     { "$ref": "#/$defs/hex" },
+        "surface":     { "$ref": "#/$defs/hex" },
+        "onPrimary":   { "$ref": "#/$defs/hex" },
+        "headingFont": { "$ref": "#/$defs/font" },
+        "bodyFont":    { "$ref": "#/$defs/font" },
+        "radius":      { "enum": ["none","sm","md","lg","full"], "default": "md" },
+        "density":     { "enum": ["compact","comfortable","spacious"], "default": "comfortable" },
+        "shadow":      { "enum": ["none","subtle","soft","dramatic"], "default": "soft" },
+        "buttonStyle": { "enum": ["solid","outline","pill","sharp"], "default": "solid" },
+        "darkMode":    { "type": "boolean", "default": false }
+      }
+    },
+
+    "nav": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "variant": { "enum": ["simple","centered","split","minimal","sticky-cta"] },
+        "items": {
+          "type": "array", "maxItems": 7,
+          "items": {
+            "type": "object",
+            "required": ["label","href"],
+            "additionalProperties": false,
+            "properties": {
+              "label": { "type": "string", "maxLength": 24 },
+              "href":  { "type": "string", "pattern": "^(/|#|tel:|mailto:|https://)" }
+            }
+          }
+        },
+        "cta": { "$ref": "#/$defs/cta" },
+        "showPhone": { "type": "boolean", "default": true }
+      }
+    },
+
+    "pages": {
+      "type": "array", "minItems": 1, "maxItems": 30,
+      "items": {
+        "type": "object",
+        "required": ["id","path","title","sections"],
+        "additionalProperties": false,
+        "properties": {
+          "id":    { "$ref": "#/$defs/id" },
+          "path":  { "type": "string", "pattern": "^/[a-z0-9\\-/]*$", "maxLength": 100 },
+          "title": { "type": "string", "minLength": 1, "maxLength": 70 },
+          "seo": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "title":       { "type": "string", "maxLength": 60 },
+              "description": { "type": "string", "maxLength": 160 },
+              "noindex":     { "type": "boolean", "default": false },
+              "ogImageAssetId": { "$ref": "#/$defs/assetId" }
+            }
+          },
+          "sections": {
+            "type": "array", "minItems": 1, "maxItems": 20,
+            "items": { "$ref": "#/$defs/section" }
+          }
+        }
+      }
+    },
+
+    "footer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "variant": { "enum": ["simple","columns","centered","rich"] },
+        "showHours": { "type": "boolean" },
+        "showServiceAreas": { "type": "boolean" },
+        "showMap": { "type": "boolean" },
+        "columns": {
+          "type": "array", "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["heading","links"],
+            "additionalProperties": false,
+            "properties": {
+              "heading": { "type": "string", "maxLength": 30 },
+              "links": {
+                "type": "array", "maxItems": 8,
+                "items": {
+                  "type": "object",
+                  "required": ["label","href"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "label": { "type": "string", "maxLength": 30 },
+                    "href":  { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "legalLinks": { "type": "boolean", "default": true }
+      }
+    },
+
+    "globals": {
+      "type": "object",
+      "description": "Cross-cutting widgets rendered on every page.",
+      "additionalProperties": false,
+      "properties": {
+        "announcementBar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["text"],
+          "properties": {
+            "text":      { "type": "string", "maxLength": 120 },
+            "href":      { "type": "string" },
+            "variant":   { "enum": ["flat","gradient","festive","urgent"] },
+            "dismissible": { "type": "boolean", "default": true },
+            "endsAt":    { "$ref": "#/$defs/isoDate" }
+          }
+        },
+        "whatsappBubble": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "prefillMessage": { "type": "string", "maxLength": 160 }
+          }
+        },
+        "stickyCallBar": {
+          "type": "object",
+          "description": "Mobile-only bottom bar. Highest-converting element for trades.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "label":   { "type": "string", "maxLength": 30 }
+          }
+        }
+      }
+    }
+  },
+
+  "$defs": {
+    "id":   { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9\\-]{0,38}[a-z0-9])?$" },
+    "hex":  { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "assetId": { "type": "string", "pattern": "^(asset_[a-zA-Z0-9]{8,}|stock:[a-z0-9\\-]{3,60})$" },
+    "isoDate": { "type": "string", "format": "date-time" },
+
+    "font": {
+      "description": "Closed set. Self-hosted, subset to latin, preloaded. Adding a font is a code change, not an AI decision.",
+      "enum": [
+        "Inter","Manrope","DM Sans","Plus Jakarta Sans","Work Sans","Source Sans 3",
+        "Playfair Display","Fraunces","Lora","Libre Baskerville","Cormorant Garamond",
+        "Space Grotesk","Archivo","Bebas Neue","Outfit","Poppins","Sora","Instrument Serif"
+      ]
+    },
+
+    "industry": {
+      "enum": ["plumber","electrician","builder","carpenter","painter","roofer","cleaner",
+               "mechanic","landscaper","pest-control","removalist","hvac","locksmith",
+               "barber","hair-salon","beauty","nails","massage","tattoo",
+               "restaurant","cafe","bakery","butcher","grocer","caterer","food-truck",
+               "gym","personal-trainer","yoga","physio","dentist","vet",
+               "accountant","bookkeeper","lawyer","consultant","real-estate","photographer",
+               "retail","florist","gift-shop","childcare","tutoring","other"]
+    },
+
+    "style": {
+      "enum": ["clean-modern","premium-modern","bold-trade","warm-local","luxury","editorial",
+               "rustic","minimal","vibrant","corporate","festive"]
+    },
+
+    "cta": {
+      "type": "object",
+      "required": ["label","href"],
+      "additionalProperties": false,
+      "properties": {
+        "label":   { "type": "string", "minLength": 1, "maxLength": 32 },
+        "href":    { "type": "string", "pattern": "^(/|#|tel:|mailto:|https://|whatsapp:)" },
+        "style":   { "enum": ["primary","secondary","ghost","accent"], "default": "primary" },
+        "icon":    { "enum": ["none","phone","arrow","cart","calendar","whatsapp","email","quote"], "default": "none" }
+      }
+    },
+
+    "image": {
+      "type": "object",
+      "required": ["assetId","alt"],
+      "additionalProperties": false,
+      "properties": {
+        "assetId": { "$ref": "#/$defs/assetId" },
+        "alt":     { "type": "string", "minLength": 1, "maxLength": 140,
+                     "description": "Required. WCAG 2.1 AA. Never decorative-empty for content images." },
+        "focal":   { "enum": ["center","top","bottom","left","right"], "default": "center" }
+      }
+    },
+
+    "section": {
+      "type": "object",
+      "required": ["id","type","variant","props"],
+      "additionalProperties": false,
+      "properties": {
+        "id":      { "$ref": "#/$defs/id" },
+        "type":    { "$ref": "#/$defs/sectionType" },
+        "variant": { "type": "string" },
+        "hidden":  { "type": "boolean", "default": false },
+        "background": { "enum": ["default","surface","primary","accent","dark","image"], "default": "default" },
+        "spacing": { "enum": ["none","sm","md","lg","xl"], "default": "lg" },
+        "anchor":  { "type": "string", "pattern": "^[a-z0-9\\-]{2,40}$" },
+        "props":   { "type": "object" }
+      },
+      "allOf": [
+        { "$ref": "#/$defs/variantRules" },
+        { "$ref": "#/$defs/propRules" }
+      ]
+    },
+
+    "sectionType": {
+      "enum": ["hero","services","productGrid","featuredProducts","about","imageText",
+               "gallery","testimonials","faq","pricing","contact","contactForm",
+               "locationMap","cta","newsletter","logos","stats","process","team",
+               "openingHours","serviceAreas","christmasPromo","countdown","giftCards",
+               "deliveryInfo","richText"]
+    },
+
+    "variantRules": {
+      "description": "A variant must exist for its type. This is what stops the model inventing components.",
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "hero" } }, "required": ["type"] },
+          "then": { "properties": { "variant": { "enum": ["minimal","modern","luxury","bold","editorial","split","video","festive"] } } } },
+        { "if": { "properties": { "type": { "const": "services" } }, "required": ["type"] },
+          "then": { "properties": { "variant": { "enum": ["cards","icons","list","alternating","numbered"] } } } },
+        { "if": { "properties": { "type": { "const": "productGrid" } }, "required": ["type"] },
+          "then": { "properties": { "variant": { "enum": ["cards","masonry","list","carousel"] } } } },
+        { "if": { "properties": { "type": { "const": "testimonials" } }, "required": ["type"] },
+          "then": { "properties": { "variant": { "enum": ["cards","quote","carousel","compact"] } } } },
+        { "if": { "properties": { "type": { "const": "contact" } }, "required": ["type"] },
+          "then": { "properties": { "variant": { "enum": ["form","split","details","map-split"] } } } },
+        { "if": { "properties": { "type": { "const": "christmasPromo" } }, "required": ["type"] },
+          "then": { "properties": { "variant": { "enum": ["banner","hero","offer-cards","gift-guide"] } } } }
+      ]
+    },
+
+    "propRules": {
+      "description": "Per-type props. Illustrative subset; the full set lives in the generated TS types and is derived from the same source of truth.",
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "hero" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "props": {
+                "type": "object",
+                "required": ["heading"],
+                "additionalProperties": false,
+                "properties": {
+                  "eyebrow":   { "type": "string", "maxLength": 40 },
+                  "heading":   { "type": "string", "minLength": 3, "maxLength": 70 },
+                  "subheading":{ "type": "string", "maxLength": 200 },
+                  "image":     { "$ref": "#/$defs/image" },
+                  "primaryCta":   { "$ref": "#/$defs/cta" },
+                  "secondaryCta": { "$ref": "#/$defs/cta" },
+                  "trustPoints": {
+                    "type": "array", "maxItems": 4,
+                    "items": { "type": "string", "maxLength": 40 },
+                    "description": "Short factual points only. NEVER a claim about licensing, insurance, awards or years in business unless supplied by the business owner."
+                  },
+                  "height": { "enum": ["compact","medium","tall","full"], "default": "medium" },
+                  "align":  { "enum": ["left","center"], "default": "left" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "services" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "props": {
+                "type": "object",
+                "required": ["items"],
+                "additionalProperties": false,
+                "properties": {
+                  "heading":     { "type": "string", "maxLength": 70 },
+                  "subheading":  { "type": "string", "maxLength": 200 },
+                  "columns":     { "enum": [2,3,4], "default": 3 },
+                  "items": {
+                    "type": "array", "minItems": 2, "maxItems": 12,
+                    "items": {
+                      "type": "object",
+                      "required": ["title"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "title":       { "type": "string", "maxLength": 50 },
+                        "description": { "type": "string", "maxLength": 220 },
+                        "icon":        { "$ref": "#/$defs/icon" },
+                        "image":       { "$ref": "#/$defs/image" },
+                        "priceFrom":   { "type": "string", "maxLength": 24,
+                                         "description": "Must be GST-inclusive and prefixed 'From ' if indicative. ACL component pricing." },
+                        "href":        { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "testimonials" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "props": {
+                "type": "object",
+                "required": ["items"],
+                "additionalProperties": false,
+                "properties": {
+                  "heading": { "type": "string", "maxLength": 70 },
+                  "items": {
+                    "type": "array", "minItems": 1, "maxItems": 12,
+                    "items": {
+                      "type": "object",
+                      "required": ["quote","author","source"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "quote":  { "type": "string", "minLength": 10, "maxLength": 400 },
+                        "author": { "type": "string", "maxLength": 60 },
+                        "location": { "type": "string", "maxLength": 60 },
+                        "rating": { "type": "integer", "minimum": 1, "maximum": 5 },
+                        "source": {
+                          "const": "customer_supplied",
+                          "description": "HARD RULE. The only permitted value. The AI may never author a testimonial; the renderer refuses any other source. Australian Consumer Law s29(1)(e)."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "countdown" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "props": {
+                "type": "object",
+                "required": ["heading","endsAt"],
+                "additionalProperties": false,
+                "properties": {
+                  "heading": { "type": "string", "maxLength": 70 },
+                  "endsAt":  { "$ref": "#/$defs/isoDate",
+                               "description": "A real deadline supplied by the business. No auto-reset, no evergreen timers. ACL." },
+                  "expiredMessage": { "type": "string", "maxLength": 120 },
+                  "cta": { "$ref": "#/$defs/cta" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "productGrid" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "props": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "heading":     { "type": "string", "maxLength": 70 },
+                  "subheading":  { "type": "string", "maxLength": 200 },
+                  "source":      { "enum": ["all","category","manual"], "default": "all" },
+                  "categorySlug":{ "type": "string" },
+                  "productIds":  { "type": "array", "maxItems": 24, "items": { "type": "string" } },
+                  "columns":     { "enum": [2,3,4], "default": 3 },
+                  "limit":       { "type": "integer", "minimum": 1, "maximum": 24 },
+                  "showPrice":   { "type": "boolean", "default": true },
+                  "gstNote":     { "type": "boolean", "default": true }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "contactForm" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "props": {
+                "type": "object",
+                "required": ["fields"],
+                "additionalProperties": false,
+                "properties": {
+                  "heading":     { "type": "string", "maxLength": 70 },
+                  "subheading":  { "type": "string", "maxLength": 200 },
+                  "submitLabel": { "type": "string", "maxLength": 30 },
+                  "successMessage": { "type": "string", "maxLength": 200 },
+                  "fields": {
+                    "type": "array", "minItems": 2, "maxItems": 10,
+                    "items": {
+                      "type": "object",
+                      "required": ["key","label","type"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "key":      { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,24}$" },
+                        "label":    { "type": "string", "maxLength": 40 },
+                        "type":     { "enum": ["text","email","tel","textarea","select","date","checkbox"] },
+                        "required": { "type": "boolean", "default": false },
+                        "options":  { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 40 } },
+                        "placeholder": { "type": "string", "maxLength": 60 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "christmasPromo" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "props": {
+                "type": "object",
+                "required": ["heading"],
+                "additionalProperties": false,
+                "properties": {
+                  "heading":     { "type": "string", "maxLength": 70 },
+                  "subheading":  { "type": "string", "maxLength": 220 },
+                  "offerText":   { "type": "string", "maxLength": 120 },
+                  "discountCode":{ "type": "string", "maxLength": 24 },
+                  "endsAt":      { "$ref": "#/$defs/isoDate" },
+                  "deliveryCutoff": { "$ref": "#/$defs/isoDate" },
+                  "cta":         { "$ref": "#/$defs/cta" },
+                  "image":       { "$ref": "#/$defs/image" },
+                  "decoration":  { "enum": ["none","snow","baubles","tinsel","stars"], "default": "none",
+                                   "description": "Respects prefers-reduced-motion. 'snow' is CSS-only, never a canvas loop." }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "icon": {
+      "enum": ["wrench","zap","hammer","droplet","home","truck","broom","car","leaf","scissors",
+               "sparkles","heart","coffee","utensils","cake","beef","gift","shopping-bag",
+               "phone","mail","map-pin","clock","calendar","shield","star","check","award",
+               "users","message-circle","dollar-sign","thermometer","key","paint-roller","tree-pine"]
+    }
+  }
+}
