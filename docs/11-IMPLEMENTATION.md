@@ -17,32 +17,43 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 
 ## Progress — 8 September 2026
 
-Day 0. Seven tickets done and verified; the rest of week 1–2 is blocked on accounts only
-you can create.
+**Week-2 exit gate met.** A published spec renders on a tenant hostname in ~27 ms warm,
+`next build` succeeds, and the isolation suite passes. 113 tests.
+
+```bash
+pnpm install && pnpm db:up && pnpm db:migrate && pnpm --filter @awning/db seed:demo
+pnpm verify                                    # 113 tests, typecheck + lint clean
+pnpm --filter @awning/render dev                # then:
+curl -H "Host: daves-plumbing.awningsites.localhost" localhost:3001
+```
 
 | | Ticket | State |
 |---|---|---|
 | F-01 | Monorepo, Turbo, TS, eslint boundaries | **done** — both architectural lint rules verified to fire |
 | F-02 | Docker Compose: Postgres, Redis, Mailpit | **done** |
 | F-03 | Migrations + seed | **done** — 31 tables on a clean DB, 3 plans |
-| F-04 | RLS + `withOrgContext` + lint ban | **done** — 10 isolation tests, mutation-checked |
+| F-04 | RLS + `withOrgContext` | **done** — 10 tests, mutation-checked |
 | F-05 | GitHub Actions CI | **done** — not yet exercised on a real runner |
-| S-01 | `packages/spec`, 7 components, `validateSpec` | **done** — 27 guardrail tests |
+| S-01 | `packages/spec`, 7 components, `validateSpec` | **done** — 32 tests |
 | S-02 | Generators: Zod → JSON Schema → catalogue | **done** — 642-token cached catalogue |
-| F-06 | Fly ×3 + Neon + Upstash | **blocked** — needs your accounts |
-| F-07 | Better Auth | next, after F-06 |
-| F-08…F-11, S-03, R-01, R-02 | | not started |
+| S-03 | `migrateSpec` + version-too-new guard | **done** |
+| R-01 | Renderer, `resolveTenant`, Redis cache | **done** — 71 tenancy tests against real PG + Redis |
+| R-02 | Subdomain allocation, reserved blocklist | **done** |
+| C-01…C-03 | Primitives, theming, `SectionBoundary` | **partial** — hero/services/cta render; 7 more components in C-04 |
+| F-06 | Fly ×3 + Neon + Upstash | **deferred** — running on local Postgres and Redis, which is equivalent for everything except deploy |
+| F-07…F-11 | Auth, org, tRPC, isolation matrix, Sentry | **next** |
 
-```
-pnpm install && pnpm db:up && pnpm db:migrate && pnpm verify
-```
-→ 37 tests passing, typecheck and lint clean.
+### Two corrections found by building
 
-**Blocked on you, in priority order:** Cloudflare (Pro on `awningsites.com`), Fly.io, Neon
-(`ap-southeast-2`), Upstash Sydney, Anthropic key, R2. Plus the two Day-0 items with long
-lead times — the Public Suffix List submission and the lawyer.
+**The versioned cache key in `02-ARCHITECTURE.md` §7 cannot work as written.** The epoch
+lives in Postgres and Prisma cannot run on Next's edge runtime, so middleware has no way
+to learn it before the cache decision is taken. MVP is short `s-maxage` plus purge-by-URL;
+the Worker + KV version is documented as the upgrade. `sites.cache_epoch` already exists,
+so the schema does not change when you get there.
 
----
+**Every "no site here" state must return 404, not 200.** First implementation rendered a
+placeholder with a 200, which would have let Google index thin pages across the whole
+wildcard domain and hidden real outages from uptime monitoring. Suspended sites 404 too.
 
 ## 0. How to read a ticket
 
