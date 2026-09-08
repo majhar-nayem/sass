@@ -1,0 +1,20 @@
+{
+  "name": "@awning/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "migrate": "prisma migrate deploy && prisma generate",
+    "pull": "prisma db pull && prisma generate",
+    "reset": "prisma migrate reset --force --skip-seed && prisma generate",
+    "studio": "prisma studio",
+    "dev:roles": "psql \"$DATABASE_URL\" -c \"ALTER ROLE awning_app PASSWORD 'awning_app'\"",
+    "build": "tsc --noEmit false --emitDeclarationOnly --outDir dist || true",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": { "@prisma/client": "^5.22.0" },
+  "devDependencies": { "prisma": "^5.22.0", "typescript": "^5.6", "vitest": "^2" }
+}

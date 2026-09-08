@@ -1,0 +1,761 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model ai_conversations {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  site_id     String        @db.Uuid
+  user_id     String?       @db.Uuid
+  title       String?
+  created_at  DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime      @default(now()) @db.Timestamptz(6)
+  sites       sites         @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users       users?        @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ai_messages ai_messages[]
+
+  @@index([site_id, updated_at(sort: Desc)])
+}
+
+model ai_messages {
+  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id      String           @db.Uuid
+  role                 String
+  content              String?
+  tool_calls           Json?
+  resulting_version_id String?          @db.Uuid
+  rejected             Boolean          @default(false)
+  reject_reason        String?
+  feedback             Int?             @db.SmallInt
+  created_at           DateTime         @default(now()) @db.Timestamptz(6)
+  ai_conversations     ai_conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  site_versions        site_versions?   @relation(fields: [resulting_version_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([conversation_id, created_at])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model ai_usage {
+  id                 BigInt         @id @default(autoincrement())
+  org_id             String         @db.Uuid
+  site_id            String?        @db.Uuid
+  user_id            String?        @db.Uuid
+  action_type        ai_action_type
+  model              String
+  input_tokens       Int            @default(0)
+  output_tokens      Int            @default(0)
+  cache_read_tokens  Int            @default(0)
+  cache_write_tokens Int            @default(0)
+  cost_cents_aud     Decimal        @default(0) @db.Decimal(10, 4)
+  latency_ms         Int?
+  success            Boolean        @default(true)
+  retry_count        Int            @default(0) @db.SmallInt
+  error_code         String?
+  counts_to_quota    Boolean        @default(true)
+  created_at         DateTime       @default(now()) @db.Timestamptz(6)
+  organizations      organizations  @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sites              sites?         @relation(fields: [site_id], references: [id], onUpdate: NoAction)
+  users              users?         @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([created_at(sort: Desc)])
+  @@index([org_id, created_at(sort: Desc)])
+}
+
+model audit_log {
+  id                                     BigInt         @id @default(autoincrement())
+  org_id                                 String?        @db.Uuid
+  actor_user_id                          String?        @db.Uuid
+  impersonator_id                        String?        @db.Uuid
+  action                                 String
+  entity_type                            String?
+  entity_id                              String?        @db.Uuid
+  before_hash                            String?
+  after_hash                             String?
+  metadata                               Json?
+  ip_hash                                String?
+  user_agent                             String?
+  created_at                             DateTime       @default(now()) @db.Timestamptz(6)
+  users_audit_log_actor_user_idTousers   users?         @relation("audit_log_actor_user_idTousers", fields: [actor_user_id], references: [id], onUpdate: NoAction)
+  users_audit_log_impersonator_idTousers users?         @relation("audit_log_impersonator_idTousers", fields: [impersonator_id], references: [id], onUpdate: NoAction)
+  organizations                          organizations? @relation(fields: [org_id], references: [id], onUpdate: NoAction)
+
+  @@index([action, created_at(sort: Desc)])
+  @@index([org_id, created_at(sort: Desc)])
+}
+
+model auth_accounts {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id             String    @db.Uuid
+  provider            String
+  provider_account_id String
+  access_token        String?
+  refresh_token       String?
+  expires_at          DateTime? @db.Timestamptz(6)
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  users               users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([provider, provider_account_id])
+}
+
+model auth_sessions {
+  id                                         String   @id
+  user_id                                    String   @db.Uuid
+  expires_at                                 DateTime @db.Timestamptz(6)
+  ip_address                                 String?  @db.Inet
+  user_agent                                 String?
+  impersonated_by                            String?  @db.Uuid
+  created_at                                 DateTime @default(now()) @db.Timestamptz(6)
+  users_auth_sessions_impersonated_byTousers users?   @relation("auth_sessions_impersonated_byTousers", fields: [impersonated_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_auth_sessions_user_idTousers         users    @relation("auth_sessions_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model discount_codes {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  site_id          String        @db.Uuid
+  code             String        @db.Citext
+  kind             discount_kind
+  value            Int
+  min_spend_cents  Int?
+  starts_at        DateTime?     @db.Timestamptz(6)
+  ends_at          DateTime?     @db.Timestamptz(6)
+  max_redemptions  Int?
+  redemption_count Int           @default(0)
+  is_active        Boolean       @default(true)
+  created_at       DateTime      @default(now()) @db.Timestamptz(6)
+  sites            sites         @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([site_id, code])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model form_submissions {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  site_id          String    @db.Uuid
+  form_key         String    @default("contact")
+  payload          Json
+  name             String?
+  email            String?   @db.Citext
+  phone            String?
+  message          String?
+  source_path      String?
+  referrer         String?
+  ip_hash          String?
+  user_agent       String?
+  turnstile_passed Boolean   @default(false)
+  is_spam          Boolean   @default(false)
+  spam_score       Decimal?  @db.Decimal(3, 2)
+  notified_at      DateTime? @db.Timestamptz(6)
+  read_at          DateTime? @db.Timestamptz(6)
+  archived_at      DateTime? @db.Timestamptz(6)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  sites            sites     @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model memberships {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_id        String        @db.Uuid
+  user_id       String        @db.Uuid
+  role          member_role   @default(owner)
+  created_at    DateTime      @default(now()) @db.Timestamptz(6)
+  organizations organizations @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users         users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([org_id, user_id])
+  @@index([user_id])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model newsletter_subscribers {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  site_id         String    @db.Uuid
+  email           String    @db.Citext
+  name            String?
+  consented_at    DateTime  @db.Timestamptz(6)
+  consent_text    String
+  consent_ip_hash String?
+  unsubscribed_at DateTime? @db.Timestamptz(6)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  sites           sites     @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([site_id, email])
+}
+
+model order_items {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id         String            @db.Uuid
+  product_id       String?           @db.Uuid
+  variant_id       String?           @db.Uuid
+  title            String
+  variant_label    String?
+  sku              String?
+  unit_price_cents Int
+  quantity         Int
+  line_total_cents Int
+  gst_free         Boolean           @default(false)
+  image_url        String?
+  orders           orders            @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  products         products?         @relation(fields: [product_id], references: [id], onUpdate: NoAction)
+  product_variants product_variants? @relation(fields: [variant_id], references: [id], onUpdate: NoAction)
+
+  @@index([order_id])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model orders {
+  id                         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  site_id                    String            @db.Uuid
+  customer_id                String?           @db.Uuid
+  order_number               Int
+  status                     order_status      @default(pending)
+  subtotal_cents             Int
+  shipping_cents             Int               @default(0)
+  discount_cents             Int               @default(0)
+  total_cents                Int
+  gst_cents                  Int               @default(0)
+  discount_code              String?
+  fulfilment                 fulfilment_method @default(shipping)
+  ship_to                    Json?
+  pickup_at                  DateTime?         @db.Timestamptz(6)
+  email                      String            @db.Citext
+  phone                      String?
+  customer_name              String?
+  notes                      String?
+  stripe_account_id          String
+  stripe_checkout_session_id String?           @unique
+  stripe_payment_intent_id   String?           @unique
+  paid_at                    DateTime?         @db.Timestamptz(6)
+  fulfilled_at               DateTime?         @db.Timestamptz(6)
+  cancelled_at               DateTime?         @db.Timestamptz(6)
+  refunded_cents             Int               @default(0)
+  created_at                 DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime          @default(now()) @db.Timestamptz(6)
+  order_items                order_items[]
+  store_customers            store_customers?  @relation(fields: [customer_id], references: [id], onUpdate: NoAction)
+  sites                      sites             @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([site_id, order_number])
+  @@index([site_id, created_at(sort: Desc)])
+  @@index([site_id, status])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model organizations {
+  id                      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                    String
+  slug                    String         @unique @db.Citext
+  abn                     String?        @db.Char(11)
+  acn                     String?        @db.Char(9)
+  legal_name              String?
+  gst_registered          Boolean        @default(false)
+  state                   String?
+  timezone                String         @default("Australia/Adelaide")
+  stripe_customer_id      String?        @unique
+  billing_email           String?        @db.Citext
+  onboarding_completed_at DateTime?      @db.Timestamptz(6)
+  created_at              DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime       @default(now()) @db.Timestamptz(6)
+  deleted_at              DateTime?      @db.Timestamptz(6)
+  ai_usage                ai_usage[]
+  audit_log               audit_log[]
+  memberships             memberships[]
+  setup_fees              setup_fees[]
+  site_assets             site_assets[]
+  sites                   sites[]
+  subscriptions           subscriptions?
+}
+
+model plans {
+  code              String          @id
+  name              String
+  price_cents_aud   Int
+  interval          String          @default("month")
+  stripe_price_id   String?
+  ai_actions_month  Int
+  ai_hard_cap_cents Int
+  max_sites         Int             @default(1)
+  max_pages         Int             @default(10)
+  max_products      Int             @default(0)
+  storage_mb        Int             @default(500)
+  custom_domain     Boolean         @default(false)
+  ecommerce         Boolean         @default(false)
+  remove_branding   Boolean         @default(false)
+  is_public         Boolean         @default(true)
+  sort_order        Int             @default(0)
+  subscriptions     subscriptions[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model product_categories {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  site_id     String     @db.Uuid
+  name        String
+  slug        String
+  position    Int        @default(0)
+  is_seasonal Boolean    @default(false)
+  sites       sites      @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  products    products[]
+
+  @@unique([site_id, slug])
+}
+
+model product_images {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product_id  String      @db.Uuid
+  asset_id    String      @db.Uuid
+  position    Int         @default(0)
+  site_assets site_assets @relation(fields: [asset_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  products    products    @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model product_variants {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product_id    String        @db.Uuid
+  option_name   String
+  option_value  String
+  price_cents   Int?
+  sku           String?
+  inventory_qty Int           @default(0)
+  position      Int           @default(0)
+  order_items   order_items[]
+  products      products      @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([product_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model products {
+  id                     String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  site_id                String              @db.Uuid
+  category_id            String?             @db.Uuid
+  kind                   product_kind        @default(physical)
+  status                 product_status      @default(draft)
+  title                  String
+  slug                   String
+  description            String?
+  price_cents            Int
+  compare_at_cents       Int?
+  compare_at_attested_at DateTime?           @db.Timestamptz(6)
+  gst_free               Boolean             @default(false)
+  sku                    String?
+  track_inventory        Boolean             @default(true)
+  inventory_qty          Int                 @default(0)
+  allow_backorder        Boolean             @default(false)
+  weight_grams           Int?
+  requires_shipping      Boolean             @default(true)
+  preorder_collect_from  DateTime?           @db.Date
+  deposit_cents          Int?
+  position               Int                 @default(0)
+  seo_title              String?
+  seo_description        String?
+  created_at             DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime            @default(now()) @db.Timestamptz(6)
+  order_items            order_items[]
+  product_images         product_images[]
+  product_variants       product_variants[]
+  product_categories     product_categories? @relation(fields: [category_id], references: [id], onUpdate: NoAction)
+  sites                  sites               @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([site_id, slug])
+  @@index([site_id, status, position])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model setup_fees {
+  id                       String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_id                   String        @db.Uuid
+  tier                     String
+  amount_cents             Int
+  stripe_payment_intent_id String?       @unique
+  paid_at                  DateTime?     @db.Timestamptz(6)
+  delivered_at             DateTime?     @db.Timestamptz(6)
+  notes                    String?
+  created_at               DateTime      @default(now()) @db.Timestamptz(6)
+  organizations            organizations @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model shipping_rates {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  site_id           String            @db.Uuid
+  name              String
+  method            fulfilment_method @default(shipping)
+  price_cents       Int
+  free_over_cents   Int?
+  applies_to_states String[]          @default([])
+  position          Int               @default(0)
+  is_active         Boolean           @default(true)
+  sites             sites             @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model site_analytics_daily {
+  site_id          String   @db.Uuid
+  day              DateTime @db.Date
+  pageviews        Int      @default(0)
+  visitors         Int      @default(0)
+  form_submissions Int      @default(0)
+  phone_clicks     Int      @default(0)
+  whatsapp_clicks  Int      @default(0)
+  orders           Int      @default(0)
+  revenue_cents    BigInt   @default(0)
+  sites            sites    @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([site_id, day])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model site_assets {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  site_id        String           @db.Uuid
+  org_id         String           @db.Uuid
+  kind           String
+  r2_key         String           @unique
+  public_url     String
+  filename       String?
+  mime_type      String
+  bytes          Int
+  width          Int?
+  height         Int?
+  blurhash       String?
+  alt_text       String?
+  source         String           @default("upload")
+  stock_credit   String?
+  uploaded_by    String?          @db.Uuid
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  product_images product_images[]
+  organizations  organizations    @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sites          sites            @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users          users?           @relation(fields: [uploaded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([org_id])
+  @@index([site_id, kind])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model site_domains {
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  site_id             String        @db.Uuid
+  hostname            String        @unique @db.Citext
+  kind                domain_kind
+  status              domain_status @default(pending)
+  is_primary          Boolean       @default(false)
+  redirect_to_primary Boolean       @default(false)
+  cf_hostname_id      String?
+  verification_txt    String?
+  ssl_status          String?
+  last_checked_at     DateTime?     @db.Timestamptz(6)
+  check_attempts      Int           @default(0)
+  error_code          String?
+  error_message_human String?
+  activated_at        DateTime?     @db.Timestamptz(6)
+  created_at          DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime      @default(now()) @db.Timestamptz(6)
+  sites               sites         @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([site_id])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model site_versions {
+  id                                              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  site_id                                         String          @db.Uuid
+  version                                         Int
+  parent_version_id                               String?         @db.Uuid
+  spec_json                                       Json
+  spec_version                                    Int             @default(1)
+  patch_json                                      Json?
+  summary                                         String?
+  created_by                                      version_author
+  created_by_user                                 String?         @db.Uuid
+  ai_conversation_id                              String?         @db.Uuid
+  byte_size                                       Int?
+  created_at                                      DateTime        @default(now()) @db.Timestamptz(6)
+  ai_messages                                     ai_messages[]
+  users                                           users?          @relation(fields: [created_by_user], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  site_versions                                   site_versions?  @relation("site_versionsTosite_versions", fields: [parent_version_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  other_site_versions                             site_versions[] @relation("site_versionsTosite_versions")
+  sites_site_versions_site_idTosites              sites           @relation("site_versions_site_idTosites", fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sites_sites_draft_version_idTosite_versions     sites[]         @relation("sites_draft_version_idTosite_versions")
+  sites_sites_published_version_idTosite_versions sites[]         @relation("sites_published_version_idTosite_versions")
+
+  @@unique([site_id, version])
+  @@index([site_id, created_at(sort: Desc)])
+  @@index([spec_json(ops: JsonbPathOps)], type: Gin)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model sites {
+  id                                                      String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_id                                                  String                   @db.Uuid
+  name                                                    String
+  slug                                                    String                   @unique @db.Citext
+  status                                                  site_status              @default(draft)
+  industry                                                String?
+  template_id                                             String?                  @db.Uuid
+  draft_version_id                                        String?                  @db.Uuid
+  published_version_id                                    String?                  @db.Uuid
+  published_at                                            DateTime?                @db.Timestamptz(6)
+  first_published_at                                      DateTime?                @db.Timestamptz(6)
+  cache_epoch                                             Int                      @default(1)
+  business_phone                                          String?
+  business_email                                          String?                  @db.Citext
+  business_address                                        Json?
+  service_areas                                           String[]                 @default([])
+  whatsapp_number                                         String?
+  socials                                                 Json                     @default("{}")
+  opening_hours                                           Json?
+  seo_title                                               String?
+  seo_description                                         String?
+  og_image_url                                            String?
+  favicon_url                                             String?
+  noindex                                                 Boolean                  @default(false)
+  created_at                                              DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at                                              DateTime                 @default(now()) @db.Timestamptz(6)
+  deleted_at                                              DateTime?                @db.Timestamptz(6)
+  ai_conversations                                        ai_conversations[]
+  ai_usage                                                ai_usage[]
+  discount_codes                                          discount_codes[]
+  form_submissions                                        form_submissions[]
+  newsletter_subscribers                                  newsletter_subscribers[]
+  orders                                                  orders[]
+  product_categories                                      product_categories[]
+  products                                                products[]
+  shipping_rates                                          shipping_rates[]
+  site_analytics_daily                                    site_analytics_daily[]
+  site_assets                                             site_assets[]
+  site_domains                                            site_domains[]
+  site_versions_site_versions_site_idTosites              site_versions[]          @relation("site_versions_site_idTosites")
+  site_versions_sites_draft_version_idTosite_versions     site_versions?           @relation("sites_draft_version_idTosite_versions", fields: [draft_version_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "sites_draft_fk")
+  organizations                                           organizations            @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  site_versions_sites_published_version_idTosite_versions site_versions?           @relation("sites_published_version_idTosite_versions", fields: [published_version_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "sites_published_fk")
+  templates                                               templates?               @relation(fields: [template_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  store_customers                                         store_customers[]
+  store_settings                                          store_settings?
+
+  @@index([org_id])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model store_customers {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  site_id           String    @db.Uuid
+  email             String    @db.Citext
+  name              String?
+  phone             String?
+  marketing_consent Boolean   @default(false)
+  consented_at      DateTime? @db.Timestamptz(6)
+  order_count       Int       @default(0)
+  total_spent_cents BigInt    @default(0)
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  orders            orders[]
+  sites             sites     @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([site_id, email])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model store_settings {
+  site_id                  String    @id @db.Uuid
+  stripe_account_id        String?
+  stripe_onboarded_at      DateTime? @db.Timestamptz(6)
+  currency                 String    @default("AUD") @db.Char(3)
+  prices_include_gst       Boolean   @default(true)
+  abn_on_invoice           String?   @db.Char(11)
+  pickup_enabled           Boolean   @default(false)
+  pickup_address           Json?
+  pickup_instructions      String?
+  local_delivery_enabled   Boolean   @default(false)
+  local_delivery_postcodes String[]  @default([])
+  local_delivery_fee_cents Int?
+  local_delivery_min_cents Int?
+  order_email_bcc          String?   @db.Citext
+  christmas_cutoff_date    DateTime? @db.Date
+  christmas_cutoff_message String?
+  terms_url                String?
+  created_at               DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime  @default(now()) @db.Timestamptz(6)
+  sites                    sites     @relation(fields: [site_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model subscriptions {
+  id                     String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_id                 String        @unique @db.Uuid
+  plan_code              String
+  status                 sub_status    @default(trialing)
+  stripe_subscription_id String?       @unique
+  current_period_start   DateTime?     @db.Timestamptz(6)
+  current_period_end     DateTime?     @db.Timestamptz(6)
+  trial_ends_at          DateTime?     @db.Timestamptz(6)
+  cancel_at_period_end   Boolean       @default(false)
+  canceled_at            DateTime?     @db.Timestamptz(6)
+  cancel_reason          String?
+  price_locked_cents     Int?
+  created_at             DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime      @default(now()) @db.Timestamptz(6)
+  organizations          organizations @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  plans                  plans         @relation(fields: [plan_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([status, current_period_end])
+}
+
+model templates {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug          String    @unique
+  name          String
+  industries    String[]  @default([])
+  tags          String[]  @default([])
+  spec_json     Json
+  spec_version  Int       @default(1)
+  thumbnail_url String?
+  preview_url   String?
+  is_seasonal   Boolean   @default(false)
+  active_from   DateTime? @db.Date
+  active_to     DateTime? @db.Date
+  is_active     Boolean   @default(true)
+  usage_count   Int       @default(0)
+  sort_order    Int       @default(0)
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  sites         sites[]
+
+  @@index([industries], type: Gin)
+  @@index([tags], type: Gin)
+}
+
+model users {
+  id                                                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                                              String             @unique @db.Citext
+  email_verified                                     Boolean            @default(false)
+  name                                               String?
+  avatar_url                                         String?
+  phone                                              String?
+  password_hash                                      String?
+  last_login_at                                      DateTime?          @db.Timestamptz(6)
+  is_platform_admin                                  Boolean            @default(false)
+  created_at                                         DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at                                         DateTime           @default(now()) @db.Timestamptz(6)
+  deleted_at                                         DateTime?          @db.Timestamptz(6)
+  ai_conversations                                   ai_conversations[]
+  ai_usage                                           ai_usage[]
+  audit_log_audit_log_actor_user_idTousers           audit_log[]        @relation("audit_log_actor_user_idTousers")
+  audit_log_audit_log_impersonator_idTousers         audit_log[]        @relation("audit_log_impersonator_idTousers")
+  auth_accounts                                      auth_accounts[]
+  auth_sessions_auth_sessions_impersonated_byTousers auth_sessions[]    @relation("auth_sessions_impersonated_byTousers")
+  auth_sessions_auth_sessions_user_idTousers         auth_sessions[]    @relation("auth_sessions_user_idTousers")
+  memberships                                        memberships[]
+  site_assets                                        site_assets[]
+  site_versions                                      site_versions[]
+}
+
+model webhook_events {
+  id           String    @id
+  provider     String
+  type         String
+  payload      Json
+  processed_at DateTime? @db.Timestamptz(6)
+  error        String?
+  attempts     Int       @default(0) @db.SmallInt
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+}
+
+enum ai_action_type {
+  generate
+  edit
+  rewrite
+  seo
+  christmas
+  image_prompt
+  support
+}
+
+enum discount_kind {
+  percent
+  fixed
+  free_shipping
+}
+
+enum domain_kind {
+  subdomain
+  custom
+}
+
+enum domain_status {
+  pending
+  verifying
+  ssl_pending
+  active
+  failed
+  detached
+}
+
+enum fulfilment_method {
+  shipping
+  pickup
+  local_delivery
+  digital
+}
+
+enum member_role {
+  owner
+  admin
+  staff
+}
+
+enum order_status {
+  pending
+  paid
+  fulfilled
+  cancelled
+  refunded
+  partially_refunded
+}
+
+enum product_kind {
+  physical
+  giftcard
+  preorder
+  service
+}
+
+enum product_status {
+  draft
+  active
+  archived
+}
+
+enum site_status {
+  draft
+  published
+  unpublished
+  suspended
+  deleted
+}
+
+enum sub_status {
+  trialing
+  active
+  past_due
+  canceled
+  incomplete
+  paused
+}
+
+enum version_author {
+  user
+  ai
+  system
+  template
+}
