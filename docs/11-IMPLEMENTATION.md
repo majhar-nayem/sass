@@ -15,6 +15,35 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 
 ---
 
+## Progress — 8 September 2026
+
+Day 0. Seven tickets done and verified; the rest of week 1–2 is blocked on accounts only
+you can create.
+
+| | Ticket | State |
+|---|---|---|
+| F-01 | Monorepo, Turbo, TS, eslint boundaries | **done** — both architectural lint rules verified to fire |
+| F-02 | Docker Compose: Postgres, Redis, Mailpit | **done** |
+| F-03 | Migrations + seed | **done** — 31 tables on a clean DB, 3 plans |
+| F-04 | RLS + `withOrgContext` + lint ban | **done** — 10 isolation tests, mutation-checked |
+| F-05 | GitHub Actions CI | **done** — not yet exercised on a real runner |
+| S-01 | `packages/spec`, 7 components, `validateSpec` | **done** — 27 guardrail tests |
+| S-02 | Generators: Zod → JSON Schema → catalogue | **done** — 642-token cached catalogue |
+| F-06 | Fly ×3 + Neon + Upstash | **blocked** — needs your accounts |
+| F-07 | Better Auth | next, after F-06 |
+| F-08…F-11, S-03, R-01, R-02 | | not started |
+
+```
+pnpm install && pnpm db:up && pnpm db:migrate && pnpm verify
+```
+→ 37 tests passing, typecheck and lint clean.
+
+**Blocked on you, in priority order:** Cloudflare (Pro on `awningsites.com`), Fly.io, Neon
+(`ap-southeast-2`), Upstash Sydney, Anthropic key, R2. Plus the two Day-0 items with long
+lead times — the Public Suffix List submission and the lawyer.
+
+---
+
 ## 0. How to read a ticket
 
 ```
