@@ -1,0 +1,71 @@
+{
+  "specVersion": 1,
+  "components": [
+    {
+      "type": "hero",
+      "variants": [
+        "minimal",
+        "modern",
+        "luxury",
+        "bold",
+        "editorial",
+        "split",
+        "video",
+        "festive"
+      ]
+    },
+    {
+      "type": "services",
+      "variants": [
+        "cards",
+        "icons",
+        "list",
+        "alternating",
+        "numbered"
+      ]
+    },
+    {
+      "type": "imageText",
+      "variants": [
+        "left",
+        "right",
+        "stacked",
+        "overlap"
+      ]
+    },
+    {
+      "type": "testimonials",
+      "variants": [
+        "cards",
+        "quote",
+        "carousel",
+        "compact"
+      ]
+    },
+    {
+      "type": "countdown",
+      "variants": [
+        "bar",
+        "block",
+        "inline"
+      ]
+    },
+    {
+      "type": "contactForm",
+      "variants": [
+        "stacked",
+        "split",
+        "inline"
+      ]
+    },
+    {
+      "type": "cta",
+      "variants": [
+        "banner",
+        "split",
+        "centered",
+        "strip"
+      ]
+    }
+  ]
+}
