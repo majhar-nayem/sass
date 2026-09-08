@@ -1,0 +1,11 @@
+{
+  "name": "@awning/tenancy",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": { "build": "echo noop", "typecheck": "tsc --noEmit", "test": "vitest run" },
+  "dependencies": { "@awning/db": "workspace:*", "ioredis": "^5.4.1" },
+  "devDependencies": { "typescript": "^5.6", "vitest": "^2" }
+}

@@ -244,7 +244,13 @@ Persisted per row: `hostname, site_id, is_primary, cf_hostname_id, status, verif
 ⚠️ **Cache-Tag purge is Cloudflare Enterprise.** Do not architect around it on a Pro plan. Two workable alternatives, pick the second:
 
 1. Purge-by-URL on publish (you know the tenant's page list — usually <10 URLs). Works, but misses query-string variants.
-2. **Versioned cache key (recommended).** The middleware rewrites to an internal path containing the published version: `/_sites/{siteId}/v{publishedVersion}/...`, and Cloudflare's cache key includes it via a Cache Rule. Publishing increments the version, so every old cached object is instantly unreachable and ages out on its own. No purge API call, no plan upgrade, no race condition. Cost: nothing.
+2. **Versioned cache key.** Rewrite to an internal path carrying the published version, so publishing makes every old cached object unreachable rather than purging it.
+
+> ⚠️ **Correction, found while building R-01.** Option 2 as originally written does not work on Next.js middleware. The rewrite would have to happen at the edge, but the epoch lives in Postgres and **Prisma cannot run on the edge runtime** — the middleware has no way to learn the version without a database round trip it cannot make. Tenant resolution therefore happens in the Node RSC, after the cache decision has already been taken.
+>
+> **What to actually do for the MVP:** `Cache-Control: public, s-maxage=60, stale-while-revalidate=86400` on tenant HTML, plus **purge-by-URL on publish** (a tenant's page list is under ten URLs, and purge-by-URL is on every paid plan). Worst case a publish takes 60 seconds to propagate; the explicit purge normally makes it instant. Simple, correct, and it costs nothing.
+>
+> **The upgrade path** when traffic justifies it: a Cloudflare Worker in front of the renderer that reads `host → epoch` from Workers KV and adds the epoch to the cache key, with KV written on publish. That gives the original design's properties — no purge call, no race — but it is real infrastructure and it is not a week-2 problem. `sites.cache_epoch` already exists and is already bumped on publish, so nothing needs to change in the schema when you get there.
 
 ## 8. Deployment architecture
 

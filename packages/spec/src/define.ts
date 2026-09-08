@@ -33,7 +33,13 @@ export function sectionSchema<TType extends string, TProps extends z.ZodTypeAny>
 ) {
   // Reject unknown props rather than stripping them. Zod's default is to strip, which
   // is safe but silent — and silence hides a model that has misunderstood the catalogue.
-  const props = def.props instanceof z.ZodObject ? def.props.strict() : def.props
+  //
+  // The cast keeps TProps intact: .strict() changes how unknown keys are handled, not
+  // the shape of a successful parse. Without it the type widens to a union and every
+  // consumer of SectionSpec loses prop inference.
+  const props = (
+    def.props instanceof z.ZodObject ? def.props.strict() : def.props
+  ) as unknown as TProps
   return z.object({
     id: z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/),
     type: z.literal(def.type),

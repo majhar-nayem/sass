@@ -10,3 +10,4 @@ coverage/
 .DS_Store
 # packages/spec/generated IS committed on purpose: CI diffs it to catch a hand-edited
 # generated file, and a PR that changes the model-facing schema should show that change.
+next-env.d.ts
