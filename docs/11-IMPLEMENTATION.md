@@ -17,50 +17,51 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 
 ## Progress — 20 September 2026
 
-**Weeks 1–6 complete, and the commercial loop with them.** Sign up → 14-day trial →
-seven questions → a website → edit by typing → *choose a plan* → publish → a visitor
-enquires → the tradie gets an email and rings them back in one tap.
-**342 tests**, lint clean, both apps build. Remote: `github.com/majhar-nayem/sass`.
+**Weeks 1–8 of the plan are done.** Sign up → trial → seven questions → a website →
+edit by typing → choose a plan → publish → custom domain → a visitor enquires → the
+tradie rings them back. A failed payment runs a schedule rather than flipping a switch.
+**396 tests**, lint clean, both apps build.
 
 ```bash
 pnpm install && pnpm db:up && pnpm db:migrate
 pnpm verify
-pnpm --filter @awning/app dev      # :3000  /onboarding → /editor → /inbox
+pnpm --filter @awning/app dev      # :3000  /onboarding /editor /inbox /domains
 pnpm --filter @awning/render dev   # :3001  tenant sites, /preview, forms, sitemap
-open http://localhost:8025         # Mailpit
+curl -X POST localhost:3000/api/cron?job=all -H "Authorization: Bearer $CRON_SECRET"
 ```
 
 | | Ticket | State |
 |---|---|---|
 | F-01…F-05, F-07…F-10 | Foundation, auth, orgs, tRPC, isolation matrix | **done** |
-| S-01…S-03, R-01, R-02 | Spec package, migrations, renderer, tenancy | **done** |
+| S-01…S-03, R-01…R-03 | Spec package, migrations, renderer, tenancy, caching | **done** |
 | C-01…C-05 | 10 components / 33 variants, Tailwind, axe gate | **done** |
-| A-01…A-11 | AI client, prompts, validation, spend controls, editing, versioning | **done** (A-03 still unexercised) |
+| A-01…A-11 | AI client, prompts, validation, spend controls, editing, versioning | **done** (A-03 unexercised) |
 | P-01, P-03…P-11 | Onboarding, templates, editor, preview, uploads, forms, inbox, SEO | **done** |
-| **M-01** | **Stripe subscriptions, Checkout, portal, idempotent webhooks** | **done** — 22 tests |
-| **M-02** | **Publish gate on subscription status** | **done** — verified end to end |
+| M-01, M-02 | Stripe subscriptions, idempotent webhooks, publish gate | **done** |
+| **O-01** | **Custom domains: Cloudflare hostnames, state machine, 8 diagnostics** | **done** — concierge |
+| **O-03** | **Dunning: 7 days of email, owner banner, suspend at 14** | **done** — walked against a live site |
+| O-02, O-04, O-05 | Admin console, monitoring, legal | not started |
 | C-06 | Stock image pool | not started |
-| F-06 | Fly ×3 + Neon + Upstash | deferred — local Postgres/Redis |
-| F-11 | Sentry | not started — needs a DSN |
-| O-01, O-03 | Domain concierge, dunning emails | **next** |
+| F-06, F-11 | Fly/Neon/Upstash, Sentry | deferred — need accounts |
+| O-06 | Self-serve domain wizard | week 9+ backlog |
 
 ### Test counts
-`@awning/tenancy` 82 · `@awning/ai` 74 · `@awning/spec` 64 · `@awning/ui-blocks` 48 ·
-`@awning/api` 47 · `@awning/integrations` 17 · `@awning/db` 10
+`@awning/api` 101 · `@awning/tenancy` 82 · `@awning/ai` 74 · `@awning/spec` 64 ·
+`@awning/ui-blocks` 48 · `@awning/integrations` 17 · `@awning/db` 10
 
 ### Still blocked on credentials
-`ANTHROPIC_API_KEY` · Stripe keys + price ids (`STRIPE_PRICE_FOUNDING` etc.) · Cloudflare,
-Fly, Neon, R2 · Sentry DSN · Turnstile secret.
-
-Everything above works without them: templates cover for generation, local disk covers
-for R2, Mailpit covers for Resend, and the webhook handler is exercised with locally
-signed payloads.
+`ANTHROPIC_API_KEY` (A-03 has never made a call) · Stripe keys + price ids · Cloudflare
+token + zone (the domain state machine runs without it, registering as `pending`) ·
+Fly/Neon/R2 · Sentry DSN · Turnstile secret.
 
 ### Defects found by building, not by review
 
-**No signup ever got a subscription row**, so `checkQuota` always denied, so onboarding
-*always* fell back to a template. Even with an API key, generation would never have run —
-the fallback was hiding it.
+**A React Context Provider cannot be rendered from a server component** — every tenant
+page 500'd while the accessibility suite passed, because `renderToStaticMarkup` does not
+enforce the server/client boundary.
+
+**No signup ever got a subscription row**, so generation always fell back to a template
+and would never have run even with an API key.
 
 **The versioned cache key in `02-ARCHITECTURE.md` §7 cannot work** — Prisma cannot run on
 Next's edge runtime.
@@ -69,12 +70,12 @@ Next's edge runtime.
 
 **Better Auth's default id format breaks a uuid primary key.**
 
-**`autoContrast` used a luminance threshold of 0.45 when the crossover is 0.179**, and
-**the contrast validator could never fire** because it checked the wrong pairing.
+**`autoContrast` used a threshold of 0.45 when the crossover is 0.179**, and **the
+contrast validator could never fire** because it checked the wrong pairing.
 
 **`import.meta.dirname` is undefined once a bundler processes a module.**
 
-**Next excludes underscore-prefixed folders from routing**, so `/_preview` 404'd.
+**Next excludes underscore-prefixed folders from routing.**
 
 **The template threw on an 80-character business name.**
 
@@ -83,8 +84,7 @@ dependency**, and **`serverExternalPackages` does not reach through one**.
 
 **Two apps, two working directories, two storage roots.**
 
-**`??=` does not fire on an empty-string env var** — `.env` sets unconfigured keys to
-`""`, which is neither null nor undefined.
+**`??=` does not fire on an empty-string env var.**
 
 ## 0. How to read a ticket
 
