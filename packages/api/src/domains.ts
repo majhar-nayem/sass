@@ -8,6 +8,7 @@ import {
   getCustomHostname,
 } from '@awning/integrations/cloudflare'
 import { normaliseHost } from '@awning/tenancy'
+import { reportError } from '@awning/integrations/observability'
 
 /**
  * O-01 -- custom domains.
@@ -238,7 +239,7 @@ export async function checkDomain(db: PrismaTx, domainId: string): Promise<Domai
     }
   } catch (e) {
     result = { status: 'verifying', humanMessage: STILL_WAITING, errorCode: 'cf_error' }
-    console.error('[domains] Cloudflare check failed', row.hostname, (e as Error).message)
+    reportError(e, { hostname: row.hostname, step: 'cloudflare-check' })
   }
 
   // Give up after 72 hours rather than polling a dead domain forever. The row stays so

@@ -17,11 +17,11 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 
 ## Progress — 20 September 2026
 
-**Every ticket through week 8 is done except the one that needs a lawyer and F-11.**
+**Every code ticket through week 8 is done. What remains needs accounts or a lawyer.**
 Sign up → trial → seven questions → a website → edit by typing → choose a plan →
 publish → custom domain → a visitor enquires → the tradie rings them back. A failed
 payment runs a schedule. An operator can see what a customer sees, and it is audited.
-**455 tests**, lint clean, both apps build, and both ship as a Docker image that has
+**478 tests**, lint clean, both apps build, and both ship as a Docker image that has
 been run and proven to serve a real tenant website.
 
 ```bash
@@ -46,12 +46,12 @@ curl -X POST "localhost:3000/api/cron?job=all" -H "Authorization: Bearer $CRON_S
 | **O-05** | **Generated tenant privacy policy** | **done** |
 | **C-06** | **Stock pipeline, manifest contract, ingest — photo curation outstanding** | **done (see below)** |
 | **F-06** | **Docker image, Fly configs, migrations, health, deploy pipeline** | **done (accounts outstanding)** |
-| F-11 | Sentry | needs account |
+| **F-11** | **Sentry with tenant tags, scrubbing, structured logs with `request_id`** | **done (needs a DSN)** |
 | O-05b | Platform T&Cs / AUP | needs the lawyer, not code |
 
 ### Test counts
 `@awning/api` 131 · `@awning/spec` 84 · `@awning/tenancy` 82 · `@awning/ai` 74 ·
-`@awning/ui-blocks` 48 · `@awning/db` 19 · `@awning/integrations` 17
+`@awning/ui-blocks` 48 · `@awning/integrations` 40 · `@awning/db` 19
 
 ### C-06 is built but the pool is nearly empty
 
@@ -122,10 +122,47 @@ The container booted, passed a shallow health check, and then failed every reque
 touched the database. No test would have caught this, because no test runs the image.
 CI now builds both images for that reason.
 
+### F-11 — tagged errors and one line per request
+
+`reportError()` is the single funnel: a structured log line always, Sentry as well when
+a DSN exists. Errors carry `org_id` and `site_id`, because "something threw" is not
+actionable when fifty businesses share a renderer. Every log line carries `request_id`,
+adopted from `cf-ray` or `fly-request-id` when the edge already assigned one.
+
+**No Axiom client in the app.** Fly collects stdout and a shipper is configured once at
+the platform — one less credential on a running machine, and no lost logs when the
+shipper is down. `fly ext log-shipper create` attaches Axiom without an app change.
+
+**Nothing personal leaves the process.** This platform holds enquiry forms belonging to
+people who gave their details to a plumber, not to us; forwarding those to an error
+tracker is a privacy breach that happens silently by default. Bodies, cookies, query
+strings, credential headers and `user` are all stripped, breadcrumb data is dropped,
+there is no session replay, and every field any caller passes is scrubbed whether they
+remembered to or not. That logic sits in one tested function rather than in each app's
+config.
+
+Verified against a **fake Sentry ingest**, since there is no account: a deliberately
+broken published site produced one event tagged `org_id`/`site_id`/`service`/`route`
+with `request_id` in extras, and a request carrying a session cookie, a bearer token
+and `?email=&token=&phone=` leaked none of those five values.
+
+### Two more defects found by running it
+
+**Deleting `event.request.query_string` is cosmetic.** `event.request.url` carries the
+identical values, and `url` is the copy that actually goes over the wire. Found by
+scanning the outbound payload rather than by reading the config.
+
+**Next bundles `instrumentation.ts` separately from the server chunks**, so a
+module-scope `const` exists twice with separate state. The request handler wrote the
+tenant into one copy and `onRequestError` read an empty one: every log line still looked
+right and the Sentry events simply arrived untagged — precisely the failure F-11 exists
+to prevent. The observability state now lives on `globalThis`, as the Prisma clients do.
+
 ### Still blocked on credentials
 `ANTHROPIC_API_KEY` — **A-03 has still never made a call**, and the digest now reports
 it honestly as a 100% AI failure rate. Also Stripe keys, Cloudflare token, Fly/Neon/R2,
-Sentry DSN, Turnstile secret. Everything runs without them: templates cover generation,
+Sentry DSN, Turnstile secret. Every one of these is a supported empty state: nothing
+crashes, and nothing pretends to work. Everything runs without them: templates cover generation,
 local disk covers R2, Mailpit covers Resend, and the domain state machine registers as
 `pending` and waits.
 

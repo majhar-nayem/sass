@@ -1,3 +1,5 @@
+import { logger } from './observability.js'
+
 /**
  * P-08 -- spam defence for public forms.
  *
@@ -28,7 +30,7 @@ export async function verifyTurnstile(token: string | null, ip?: string): Promis
     return body.success === true
   } catch {
     // Cloudflare being unreachable must not silently drop a real customer's enquiry.
-    console.error('[turnstile] verification unreachable; allowing with a spam score')
+    logger.warn('turnstile.unreachable', { action: 'allowed-with-spam-score' })
     return true
   }
 }

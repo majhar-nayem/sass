@@ -1,4 +1,5 @@
 import nodemailer, { type Transporter } from 'nodemailer'
+import { reportError } from './observability.js'
 
 /**
  * Transactional email.
@@ -85,7 +86,7 @@ export async function sendMail(mail: Mail): Promise<{ sent: boolean; error?: str
     })
     return { sent: true }
   } catch (e) {
-    console.error('[mail] send failed', (e as Error).message)
+    reportError(e, { step: 'mail-send' })
     return { sent: false, error: (e as Error).message }
   }
 }

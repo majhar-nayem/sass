@@ -120,7 +120,56 @@ broken every customer's website is broken at once.
 
 ---
 
-## 5. What has actually been verified
+## 5. Observability (F-11)
+
+### Logs
+
+One JSON object per line on stdout, every line carrying `request_id`. That is what turns
+twelve unrelated lines into one story, and it is taken from `x-request-id`, `cf-ray` or
+`fly-request-id` when the edge already assigned one, so the two sides of a hop join up.
+
+**There is no Axiom client in the application.** Fly already collects stdout, and a log
+shipper is configured once at the platform rather than as a token in every process —
+one less credential that can leak from a running machine, and no lost logs when the
+shipper is down. To attach Axiom, deploy Fly's log shipper into the org; the app does
+not change:
+
+```bash
+fly ext log-shipper create      # then choose Axiom and give it the dataset token
+```
+
+Query with `request_id`, `org_id`, `site_id`, `service`, `route`, `event`.
+
+### Errors
+
+`reportError()` is the single funnel: it always writes a log line, and additionally
+reports to Sentry when a DSN is configured. Tags carry the tenant — `org_id`, `site_id`,
+`service`, `route` — because "something threw" is not actionable when fifty businesses
+share a renderer.
+
+Without `SENTRY_DSN` nothing is initialised, nothing is sent and nothing is printed.
+That is the normal state in development.
+
+### What is deliberately never sent
+
+This platform holds enquiry forms full of names, phone numbers and addresses belonging
+to people who gave them to a plumber, not to us. Under the Australian Privacy Principles
+those are not ours to forward to an error tracker, and an error tracker is exactly where
+they end up by default — inside request bodies, query strings and breadcrumbs.
+
+So: `sendDefaultPii: false`, request bodies and cookies dropped, the query string
+stripped from **both** `query_string` and `url`, credential headers redacted, `user`
+removed, query and http breadcrumbs stripped of their data, and no session replay on
+either app. Every field a caller passes to the logger or to `reportError` goes through
+the scrubber whether or not they remembered to.
+
+`scrubEvent()` lives in `packages/integrations/src/observability.ts` rather than in each
+app's Sentry config, because it is the privacy boundary of the whole system and it needs
+tests rather than good intentions.
+
+---
+
+## 6. What has actually been verified
 
 Run locally against the built image and the Compose database:
 
@@ -141,9 +190,36 @@ Two defects were found this way and fixed, neither of which any test would have 
 2. **The RLS fallback described above**, which was silent by design in development and
    catastrophic in production.
 
+### Observability, verified against a fake ingest
+
+There is no Sentry account, so a local HTTP server stood in for Sentry's ingest endpoint
+and the SDK's real network path was exercised against it. With a published site
+deliberately made invalid, a request to that tenant produced:
+
+- a log line carrying `request_id`, `service`, `org_id`, `site_id`, `route`, and the
+  validation error that caused it
+- one Sentry event tagged `org_id`, `site_id`, `service`, `route`, with `request_id` in
+  extras — which is F-11's acceptance criterion
+- with a request carrying a session cookie, a bearer token and `?email=&token=&phone=`,
+  **none of those five values appeared anywhere in the outbound payload**
+
+That last check found a real hole: deleting `event.request.query_string` is cosmetic,
+because `event.request.url` carries the identical values and `url` is the copy that
+actually gets sent.
+
+It also found the subtler one. **Next bundles `instrumentation.ts` separately from the
+server chunks that serve a request**, so a module-scope `const` exists twice with
+separate state: the request handler wrote context into one copy and `onRequestError`
+read an empty one. Every log line still looked correct and the errors simply arrived
+untagged — the exact failure this ticket exists to prevent. The observability state now
+lives on `globalThis`, the same way the Prisma clients do.
+
 **Not verified, because it needs accounts:** anything against real Neon, Upstash, Fly or
 Cloudflare — TLS to Neon's pooler, Upstash connection limits, Fly's health-gated rolling
 deploy, and the `awning_app` role creation running as Neon's `neondb_owner`.
+
+**Also unverified:** anything against real Sentry — quota, rate limiting, source-map
+upload, and whether release health works with Fly's machine versions.
 
 **Architecture note:** images are built with `--remote-only` on Fly's amd64 builders.
 The local proof above was an arm64 build on Apple silicon, which is why the Prisma

@@ -2,6 +2,7 @@ import { initTRPC, TRPCError } from '@trpc/server'
 import superjson from 'superjson'
 import { membershipFor, type Membership } from '@awning/auth'
 import { withOrgContext, type PrismaTx } from '@awning/db'
+import { enrichRequestContext } from '@awning/integrations/observability'
 
 export interface Context {
   /** Resolved from the session cookie by the route handler. Never from the client. */
@@ -65,6 +66,10 @@ export const orgProcedure = authedProcedure.use(
         code: 'FORBIDDEN',
         message: 'You are not a member of this organisation.',
       })
+
+    // F-11: tag the request now, not earlier. Before this line the org id is only a
+    // header the caller sent; after it, membership has been verified.
+    enrichRequestContext({ orgId: membership.orgId, userId: ctx.userId! })
 
     return withOrgContext(membership.orgId, async (db) =>
       next({ ctx: { ...ctx, userId: ctx.userId!, membership, db } }),

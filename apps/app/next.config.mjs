@@ -1,7 +1,8 @@
 import path from 'node:path'
+import { withSentryConfig } from '@sentry/nextjs'
 
 /** @type {import('next').NextConfig} */
-export default {
+const config = {
   reactStrictMode: true,
   // Ships a self-contained server with only the files actually traced as reachable.
   // outputFileTracingRoot must be the workspace root or the trace stops at the app
@@ -22,3 +23,18 @@ export default {
     return config
   },
 }
+
+// Source maps are uploaded only when there is somewhere to upload them to, so a build
+// without Sentry credentials is a normal build and not a warning storm.
+export default process.env.SENTRY_AUTH_TOKEN
+  ? withSentryConfig(config, {
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      silent: true,
+      // Strip them after upload: a stack trace readable in Sentry, nothing served to
+      // the public that maps our bundles back to source.
+      sourcemaps: { deleteSourcemapsAfterUpload: true },
+      disableLogger: true,
+    })
+  : config

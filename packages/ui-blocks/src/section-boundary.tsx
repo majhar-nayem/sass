@@ -1,5 +1,6 @@
 'use client'
 import { Component, type ReactNode } from 'react'
+import { reportSectionError } from './report.js'
 
 /**
  * C-03 -- one error boundary per section.
@@ -20,8 +21,9 @@ export class SectionBoundary extends Component<
   }
 
   override componentDidCatch(error: Error) {
-    // Sentry lands here in F-11, tagged with sectionId and type.
-    console.error(`[section ${this.props.type}#${this.props.sectionId}]`, error.message)
+    // A swallowed error is invisible by definition: the visitor sees a slightly shorter
+    // page and nobody is told. This is the only way we hear about it.
+    reportSectionError(error, { sectionId: this.props.sectionId, type: this.props.type })
   }
 
   override render() {
