@@ -17,63 +17,65 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 
 ## Progress — 20 September 2026
 
-**Weeks 1–5 of the build complete** — the whole product loop except generation running
-live. Sign up → org + subdomain → edit by chat or by hand → undo → publish → it renders
-on the tenant hostname, responsive and accessible. **262 tests**, lint clean, both apps
-build. Remote: `github.com/majhar-nayem/sass`, all commits SSH-signed.
+**The product works end to end.** Sign up → seven questions → a website → edit it by
+typing → undo → publish → it renders on the tenant hostname, responsive and accessible.
+**302 tests**, lint clean, both apps build. Remote: `github.com/majhar-nayem/sass`.
 
 ```bash
-pnpm install && pnpm db:up && pnpm db:migrate && pnpm --filter @awning/db seed:demo
+pnpm install && pnpm db:up && pnpm db:migrate
 pnpm verify
-pnpm --filter @awning/app dev      # :3000 dashboard
-pnpm --filter @awning/render dev   # :3001 tenant sites
+pnpm --filter @awning/app dev      # :3000  sign up, then /onboarding
+pnpm --filter @awning/render dev   # :3001  tenant sites + /preview
 ```
 
 | | Ticket | State |
 |---|---|---|
 | F-01…F-05, F-07…F-09 | Foundation, auth, orgs, tRPC, dashboard | **done** |
-| **F-10** | Isolation matrix generated from the router | **done** — caught all 9 new AI procedures |
+| F-10 | Isolation matrix generated from the router | **done** — has now caught 12 new procedures across two sessions |
 | S-01…S-03 | Spec package, generators, spec migrations | **done** |
 | R-01, R-02 | Renderer, tenant resolution, subdomains | **done** |
 | C-01…C-05 | 10 components / 33 variants, Tailwind, axe gate | **done** |
-| A-01, A-02 | `runAiAction`, cached prefix, industry packs | **done** |
-| A-03 | Generation via structured outputs | **written, unexercised** — needs an API key |
-| A-04, A-05 | Validation pipeline, retry with error text | **done** |
+| A-01, A-02, A-04, A-05, A-07 | Client, cached prefix, validation, retries, spend controls | **done** |
+| A-03 | Generation via structured outputs | **written, still unexercised** — needs an API key |
 | A-06 | Eval harness, 30 briefs (10 hostile) | **done offline**; needs a key to run live |
-| A-07 | Quota, spend cap, rate limit, circuit breaker | **done** — 16 tests on real Postgres |
-| **A-08** | **Edit tool calls, addressed by sectionId** | **done** — 36 tests |
-| **A-09** | **Intent router + spec digest** | **done** |
-| **A-10** | **Version history, undo, restore** | **done** — 21 tests, verified over HTTP |
-| **A-11** | **Deterministic fast path** | **done** — no model call |
+| A-08…A-11 | Edit tool calls, router, versioning, fast path | **done** |
+| **P-01** | **Onboarding wizard + autosaved drafts** | **done** |
+| **P-03** | **Template system (2 industries' worth of palettes ×18)** | **done** — built as the generation fallback |
+| **P-05** | **Chat editor** | **done** |
+| **P-06** | **Live preview, signed tokens** | **done** |
+| P-04 | Publish + subdomain + first-publish email | **partial** — publish works; email pending Resend |
+| P-07…P-11 | Uploads, forms, inbox, CTAs, SEO | **next** |
 | C-06 | Stock image pool | not started |
 | F-06 | Fly ×3 + Neon + Upstash | deferred — local Postgres/Redis |
 | F-11 | Sentry | not started — needs a DSN |
-| **P-01, P-05, P-06** | **Onboarding wizard, chat editor UI, live preview** | **next** |
 
 ### Test counts
-`@awning/ai` 74 · `@awning/tenancy` 71 · `@awning/ui-blocks` 48 · `@awning/spec` 32 ·
-`@awning/api` 21 · `@awning/db` 10
+`@awning/tenancy` 82 · `@awning/ai` 74 · `@awning/spec` 64 · `@awning/ui-blocks` 48 ·
+`@awning/api` 24 · `@awning/db` 10
 
 ### Defects found by building, not by review
 
 **The versioned cache key in `02-ARCHITECTURE.md` §7 cannot work** — Prisma cannot run on
 Next's edge runtime.
 
-**Every "no site here" state must return 404, not 200**, or Google indexes thin pages
-across the wildcard domain.
+**Every "no site here" state must return 404, not 200.**
 
 **Better Auth's default id format breaks a uuid primary key.**
 
-**`autoContrast` used a luminance threshold of 0.45 when the crossover is 0.179.**
+**`autoContrast` used a luminance threshold of 0.45 when the crossover is 0.179**, so
+every mid-tone brand colour got white text; the demo's own buttons failed AA.
 
-**The contrast validator could never fire** — it checked whether a brand colour had *some*
-legible foreground (always true). The real failure is the accent as small text: the demo's
-eyebrow, price and star text were ~3.2:1, failing AA.
+**The contrast validator could never fire** — it checked whether a colour had *some*
+legible foreground (always true) instead of the pairings the renderer uses.
 
-**`import.meta.dirname` is undefined once a bundler processes a module.** Reading the
-component catalogue from disk passed every test and made `@awning/ai` unimportable by the
-app. Generated artefacts are now `.ts` modules that get imported; nothing reads the
-filesystem at runtime.
+**`import.meta.dirname` is undefined once a bundler processes a module**, which made
+`@awning/ai` unimportable by the app while every test passed.
+
+**Next excludes underscore-prefixed folders from routing**, so `/_preview` was never a
+route and every preview 404'd even with a valid token.
+
+**The template threw on an 80-character business name** — the schema allows 80 for the
+business name and 70 for a page title, and real trading names land between the two.
 
 ## 0. How to read a ticket
 
