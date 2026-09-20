@@ -21,7 +21,7 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 Sign up → trial → seven questions → a website → edit by typing → choose a plan →
 publish → custom domain → a visitor enquires → the tradie rings them back. A failed
 payment runs a schedule. An operator can see what a customer sees, and it is audited.
-**478 tests**, lint clean, both apps build, and both ship as a Docker image that has
+**507 tests**, lint clean, both apps build, and both ship as a Docker image that has
 been run and proven to serve a real tenant website.
 
 ```bash
@@ -47,10 +47,10 @@ curl -X POST "localhost:3000/api/cron?job=all" -H "Authorization: Bearer $CRON_S
 | **C-06** | **Stock pipeline, manifest contract, ingest — photo curation outstanding** | **done (see below)** |
 | **F-06** | **Docker image, Fly configs, migrations, health, deploy pipeline** | **done (accounts outstanding)** |
 | **F-11** | **Sentry with tenant tags, scrubbing, structured logs with `request_id`** | **done (needs a DSN)** |
-| O-05b | Platform T&Cs / AUP | needs the lawyer, not code |
+| **O-05b** | **Terms + AUP drafted, acceptance recorded, takedown path** | **drafts need the lawyer** |
 
 ### Test counts
-`@awning/api` 131 · `@awning/spec` 84 · `@awning/tenancy` 82 · `@awning/ai` 74 ·
+`@awning/api` 148 · `@awning/spec` 96 · `@awning/tenancy` 82 · `@awning/ai` 74 ·
 `@awning/ui-blocks` 48 · `@awning/integrations` 40 · `@awning/db` 19
 
 ### C-06 is built but the pool is nearly empty
@@ -157,6 +157,64 @@ module-scope `const` exists twice with separate state. The request handler wrote
 tenant into one copy and `onRequestError` read an empty one: every log line still looked
 right and the Sentry events simply arrived untagged — precisely the failure F-11 exists
 to prevent. The observability state now lives on `globalThis`, as the Prisma clients do.
+
+### O-05b — drafted, plumbed, and waiting on a solicitor
+
+**I am not a lawyer and these are drafts, not advice.** What I could usefully do was
+make the review cheap and build the machinery the documents depend on.
+
+`docs/legal/` holds the terms of service, the acceptable use policy, a subprocessor
+register, a takedown runbook, and — the most useful item — `LAWYER-BRIEF.md`, which
+sets out the decisions only a solicitor can make so the ~A$1,500 buys a review rather
+than a first draft. Awning's own privacy policy is deliberately **not** drafted: it
+turns on whether the small business operator exemption applies to us, which is exactly
+the question to pay for.
+
+The brief leads on the exposure I am least comfortable guessing at: **our customers are
+small businesses and this is a standard-form contract**, so the unfair contract terms
+regime applies to us, with civil penalties for merely proposing an unfair term. Four
+specific clauses are flagged. It also asks where liability sits when the AI writes a
+misleading claim and the customer publishes it — including whether our guardrails help
+our position or create an expectation we catch everything. We would keep them either
+way, but it changes what the terms should say.
+
+**Acceptance is recorded against the text, not a boolean.** Documents are compiled from
+markdown with a SHA-256 of each body; acceptance stores the document, the version and
+the hash, so it is always possible to show which words were on screen. Bumping a
+version makes it outstanding again for people who accepted the old one; fixing a typo
+does not. The checkbox at onboarding is unticked by default and required — a pre-ticked
+box records agreement nobody gave, which is worse than no record. CI fails if the
+generated module is stale.
+
+The AUP now has a mechanism behind it: `suspendForAup` demands a written reason,
+audits who did it, bumps the cache epoch so the page stops being served immediately,
+and deletes nothing, because a wrong takedown has to be reversible.
+
+### A factual claim we were publishing on every customer's site
+
+The generated tenant privacy policy said personal information is stored "on secure
+servers in Australia" and stopped there — while enquiry notifications, carrying the
+enquirer's name, phone number and message, go through **Resend in the United States**.
+
+That is an unverified assertion published as fact on a customer's website, which is
+the same failure the banned-claims validator exists to prevent; the difference is that
+we wrote this one. The policy now names overseas recipients, driven by a
+machine-readable subprocessor register so it cannot drift, and stays silent for a
+brochure site that genuinely sends nothing offshore. The generator had no tests at all
+despite producing a legal document; it has twelve now.
+
+### And a dev-only regression from F-11
+
+`observability.ts` imported `node:crypto`, and Next pulls that module into the **edge**
+bundle via `sentry.server.config.ts`. Under `next dev` every route in the dashboard
+answered 500. The production build tolerates it — verified by rebuilding the image with
+the fault restored, which served pages fine — so CI was green and the dashboard was
+simply unrunnable locally. Now uses Web Crypto's `randomUUID`, which exists in Node,
+edge and browsers alike.
+
+CI now also boots the built app image and asks it for a real page. That would not have
+caught this one, and the comment there says so; it catches the class that the missing
+Prisma engine belonged to.
 
 ### Still blocked on credentials
 `ANTHROPIC_API_KEY` — **A-03 has still never made a call**, and the digest now reports

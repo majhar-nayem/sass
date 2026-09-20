@@ -19,7 +19,8 @@
     "db:seed": "pnpm --filter @awning/db seed",
     "verify": "pnpm typecheck && pnpm lint && pnpm test",
     "stock:ingest": "tsx scripts/ingest-stock.ts",
-    "stock:validate": "tsx scripts/validate-stock.ts"
+    "stock:validate": "tsx scripts/validate-stock.ts",
+    "gen:legal": "tsx scripts/gen-legal.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9",

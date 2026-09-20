@@ -6,6 +6,7 @@ import { withoutOrgContext } from '@awning/db'
 import { generateSite } from '@awning/ai'
 import { authedProcedure, router } from '../trpc.js'
 import { writeVersion } from '../versions.js'
+import { acceptCurrentDocuments, outstandingDocuments } from '../legal/index.js'
 
 /**
  * P-01 -- onboarding.
@@ -75,7 +76,28 @@ export const onboardingRouter = router({
    * a lost customer, and a template site is a perfectly good starting point they can
    * then change by typing. See docs/09-GTM-FINANCE.md R5.
    */
-  complete: authedProcedure.input(z.object({ answers: Answers })).mutation(async ({ ctx, input }) => {
+  /** Which documents this person still has to accept. Empty means they are up to date. */
+  outstandingTerms: authedProcedure.query(async ({ ctx }) => {
+    const docs = await withoutOrgContext('session', (db) =>
+      outstandingDocuments(db, ctx.userId!),
+    )
+    return docs.map((d) => ({ id: d.id, title: d.title, version: d.version }))
+  }),
+
+  complete: authedProcedure
+    .input(
+      z.object({
+        answers: Answers,
+        /**
+         * O-05b. Accepting is an act, so the client has to say it happened — a default
+         * of true would record agreement nobody gave, which is worse than no record.
+         */
+        acceptTerms: z.literal(true, {
+          errorMap: () => ({ message: 'You need to accept the terms to set up your website.' }),
+        }),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
     const a = input.answers
     const existing = await withoutOrgContext('session', (db) =>
       db.memberships.findFirst({ where: { user_id: ctx.userId! }, select: { org_id: true } }),
@@ -154,6 +176,12 @@ export const onboardingRouter = router({
       await db.onboarding_drafts.updateMany({
         where: { user_id: ctx.userId! },
         data: { completed_at: new Date() },
+      })
+      // In the same transaction as the org: an account that exists without a record
+      // of accepted terms is the state we would least like to discover later.
+      await acceptCurrentDocuments(db, ctx.userId!, orgId, {
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
       })
     })
 

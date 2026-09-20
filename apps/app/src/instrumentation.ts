@@ -10,7 +10,6 @@ import * as Sentry from '@sentry/nextjs'
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === 'edge') {
     await import('../sentry.edge.config.js')
-    return
   }
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
 
@@ -49,8 +48,22 @@ export async function onRequestError(
   request: { path: string },
   context: { routerKind: string; routePath: string; routeType: string },
 ): Promise<void> {
-  const { currentContext } = await import('@awning/integrations/observability')
-  const ctx = currentContext()
+  /**
+   * Read the request context off globalThis rather than importing the module.
+   *
+   * This file is also compiled for the EDGE runtime, and importing the observability
+   * module from here drags node:crypto and node:async_hooks into that bundle, which
+   * webpack cannot resolve — the whole app then answers 500 on every route. A runtime
+   * guard would not help, because the bundler follows the import either way.
+   *
+   * The state is already global (see observability.ts), so reading it directly is not
+   * a workaround: it is the same object the request handler wrote to.
+   */
+  const ctx = (
+    globalThis as unknown as {
+      __awningObservability?: { storage?: { getStore(): { requestId?: string; orgId?: string; siteId?: string } | undefined } }
+    }
+  ).__awningObservability?.storage?.getStore()
   Sentry.withScope((scope) => {
     scope.setTags({
       service: 'app',

@@ -52,6 +52,12 @@ jobs:
       # missing image or an uncredited photograph.
       - run: pnpm stock:validate
 
+      # The legal documents are compiled to a module with a hash of each one, and
+      # acceptance is recorded against that hash. A stale generated file means people
+      # are agreeing to text that is not what the repository says it is.
+      - run: pnpm gen:legal
+      - run: git diff --exit-code -- packages/api/src/legal || (echo "::error::legal documents changed — run pnpm gen:legal" && exit 1)
+
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm lint
@@ -67,3 +73,34 @@ jobs:
         run: |
           docker build --build-arg APP=render -t awning-render:ci .
           docker build --build-arg APP=app    -t awning-app:ci .
+
+      # Building is not running: the image built cleanly while the Prisma query engine
+      # was missing from it, and only starting the container found that. This catches
+      # that class — runtime failures in the production image.
+      #
+      # It does NOT catch dev-only bundler failures; `next dev` compiles edge entries
+      # differently and can be broken while the production build is fine. Running
+      # `pnpm dev` is still the only thing that finds those.
+      - name: the apps actually serve a page
+        run: |
+          set -e
+          docker run -d --name smoke-app --network host \
+            -e NODE_ENV=production -e PORT=8081 \
+            -e DATABASE_URL="$DATABASE_URL" -e DIRECT_URL="$DIRECT_URL" \
+            -e APP_DATABASE_URL="$APP_DATABASE_URL" -e REDIS_URL="$REDIS_URL" \
+            -e BETTER_AUTH_SECRET=ci-only-secret-0123456789abcdef \
+            -e APP_URL=http://localhost:8081 -e SITES_ROOT_DOMAIN=awningsites.localhost \
+            awning-app:ci
+          for i in $(seq 1 30); do
+            curl -fsS "http://localhost:8081/api/health" >/dev/null 2>&1 && break
+            sleep 2
+          done
+          echo "== deep health"
+          curl -fsS "http://localhost:8081/api/health/deep"
+          echo
+          echo "== a real page, server-rendered"
+          curl -fsS "http://localhost:8081/legal/terms" | grep -q "Terms of Service"
+          curl -fsS "http://localhost:8081/sign-in" >/dev/null
+          echo "app serves pages"
+          docker logs smoke-app 2>&1 | grep -i "UnhandledSchemeError" && exit 1 || true
+          docker rm -f smoke-app

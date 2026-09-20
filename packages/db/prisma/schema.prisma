@@ -1,8 +1,9 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   // native covers the dev Mac; the debian targets cover the container. Fly's remote
   // builder is amd64 and a local test build on Apple silicon is arm64 — without both,
   // the image builds fine and then cannot find a query engine at boot.
+  // (`prisma db pull` strips this comment; put it back.)
   binaryTargets = ["native", "debian-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
 }
 
@@ -263,23 +264,24 @@ model orders {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model organizations {
-  id                      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                      String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                    String
-  slug                    String         @unique @db.Citext
-  abn                     String?        @db.Char(11)
-  acn                     String?        @db.Char(9)
+  slug                    String              @unique @db.Citext
+  abn                     String?             @db.Char(11)
+  acn                     String?             @db.Char(9)
   legal_name              String?
-  gst_registered          Boolean        @default(false)
+  gst_registered          Boolean             @default(false)
   state                   String?
-  timezone                String         @default("Australia/Adelaide")
-  stripe_customer_id      String?        @unique
-  billing_email           String?        @db.Citext
-  onboarding_completed_at DateTime?      @db.Timestamptz(6)
-  created_at              DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at              DateTime       @default(now()) @db.Timestamptz(6)
-  deleted_at              DateTime?      @db.Timestamptz(6)
+  timezone                String              @default("Australia/Adelaide")
+  stripe_customer_id      String?             @unique
+  billing_email           String?             @db.Citext
+  onboarding_completed_at DateTime?           @db.Timestamptz(6)
+  created_at              DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime            @default(now()) @db.Timestamptz(6)
+  deleted_at              DateTime?           @db.Timestamptz(6)
   ai_usage                ai_usage[]
   audit_log               audit_log[]
+  legal_acceptances       legal_acceptances[]
   memberships             memberships[]
   setup_fees              setup_fees[]
   site_assets             site_assets[]
@@ -651,24 +653,25 @@ model templates {
 }
 
 model users {
-  id                                                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email                                              String             @unique @db.Citext
-  email_verified                                     Boolean            @default(false)
+  id                                                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                                              String              @unique @db.Citext
+  email_verified                                     Boolean             @default(false)
   name                                               String?
   avatar_url                                         String?
   phone                                              String?
-  last_login_at                                      DateTime?          @db.Timestamptz(6)
-  is_platform_admin                                  Boolean            @default(false)
-  created_at                                         DateTime           @default(now()) @db.Timestamptz(6)
-  updated_at                                         DateTime           @default(now()) @db.Timestamptz(6)
-  deleted_at                                         DateTime?          @db.Timestamptz(6)
+  last_login_at                                      DateTime?           @db.Timestamptz(6)
+  is_platform_admin                                  Boolean             @default(false)
+  created_at                                         DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at                                         DateTime            @default(now()) @db.Timestamptz(6)
+  deleted_at                                         DateTime?           @db.Timestamptz(6)
   ai_conversations                                   ai_conversations[]
   ai_usage                                           ai_usage[]
-  audit_log_audit_log_actor_user_idTousers           audit_log[]        @relation("audit_log_actor_user_idTousers")
-  audit_log_audit_log_impersonator_idTousers         audit_log[]        @relation("audit_log_impersonator_idTousers")
+  audit_log_audit_log_actor_user_idTousers           audit_log[]         @relation("audit_log_actor_user_idTousers")
+  audit_log_audit_log_impersonator_idTousers         audit_log[]         @relation("audit_log_impersonator_idTousers")
   auth_accounts                                      auth_accounts[]
-  auth_sessions_auth_sessions_impersonated_byTousers auth_sessions[]    @relation("auth_sessions_impersonated_byTousers")
-  auth_sessions_auth_sessions_user_idTousers         auth_sessions[]    @relation("auth_sessions_user_idTousers")
+  auth_sessions_auth_sessions_impersonated_byTousers auth_sessions[]     @relation("auth_sessions_impersonated_byTousers")
+  auth_sessions_auth_sessions_user_idTousers         auth_sessions[]     @relation("auth_sessions_user_idTousers")
+  legal_acceptances                                  legal_acceptances[]
   memberships                                        memberships[]
   onboarding_drafts                                  onboarding_drafts?
   site_assets                                        site_assets[]
@@ -727,6 +730,25 @@ model stock_assets {
   ingested_at   DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([industries], type: Gin)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model legal_acceptances {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String         @db.Uuid
+  org_id        String?        @db.Uuid
+  document_id   String
+  version       Int
+  sha256        String         @db.Char(64)
+  accepted_at   DateTime       @default(now()) @db.Timestamptz(6)
+  ip_hash       String?
+  user_agent    String?
+  organizations organizations? @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users         users          @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, document_id, version], map: "one_acceptance_per_version")
+  @@index([user_id, document_id], map: "legal_acceptances_user_idx")
 }
 
 enum ai_action_type {

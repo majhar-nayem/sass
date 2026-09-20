@@ -1,3 +1,5 @@
+import { overseasRecipients } from './subprocessors.js'
+
 /**
  * O-05 -- a privacy policy generated from what a site actually collects.
  *
@@ -25,6 +27,11 @@ export interface PolicyInputs {
     analytics: boolean
   }
   updatedAt?: Date
+}
+
+function listOf(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? ''
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
 }
 
 const AU_DATE = (d: Date) =>
@@ -99,13 +106,25 @@ export function generatePrivacyPolicy(input: PolicyInputs): string {
     ``,
     `We do not sell your information and we do not share it for marketing.`,
     ``,
-    `Our website is built and hosted by Awning, which stores the information on secure servers in Australia on our behalf.`,
+    `Our website is built and hosted by Awning, which stores it on secure servers in Australia on our behalf.`,
   )
   if (collects.onlineOrders)
     sections.push(
       ``,
       `Payments are handled by Stripe. Your card details go directly to Stripe and are never stored by us — we only see that a payment succeeded and what you ordered.`,
     )
+
+  // APP 8. Saying "stored in Australia" and stopping there is not accurate if an
+  // enquiry email leaves the country, and this page is a representation the business
+  // makes to its own customers.
+  const overseas = overseasRecipients(collects)
+  if (overseas.length) {
+    const names = overseas.map((s) => `${s.name} (${s.country === 'US' ? 'United States' : 'overseas'})`)
+    sections.push(
+      ``,
+      `Some of it is handled outside Australia. ${listOf(names)} ${overseas.length === 1 ? 'is a provider' : 'are providers'} we use to run this website, and we have taken reasonable steps to require them to protect your information to the standard Australian law expects.`,
+    )
+  }
 
   sections.push(
     ``,

@@ -1,5 +1,16 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { randomUUID } from 'node:crypto'
+
+/**
+ * Web Crypto, not node:crypto.
+ *
+ * This module is reachable from `sentry.server.config.ts`, which Next pulls into the
+ * EDGE bundle as well as the node one. A `node:crypto` import there is unresolvable,
+ * and under `next dev` that takes down every route in the app with a bundler error —
+ * the production build happens to tolerate it, so it looks fine in CI and nobody can
+ * run the dashboard locally. `crypto.randomUUID` is a global in Node 19+, in the edge
+ * runtime and in browsers, so the portable one costs nothing.
+ */
+const randomUUID = (): string => globalThis.crypto.randomUUID()
 
 /**
  * F-11 -- structured logs and error reporting.
