@@ -1,5 +1,9 @@
 generator client {
   provider = "prisma-client-js"
+  // native covers the dev Mac; the debian targets cover the container. Fly's remote
+  // builder is amd64 and a local test build on Apple silicon is arm64 — without both,
+  // the image builds fine and then cannot find a query engine at boot.
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
 }
 
 datasource db {

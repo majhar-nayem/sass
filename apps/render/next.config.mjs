@@ -1,6 +1,13 @@
+import path from 'node:path'
+
 /** @type {import('next').NextConfig} */
 export default {
   reactStrictMode: true,
+  // Ships a self-contained server with only the files actually traced as reachable.
+  // outputFileTracingRoot must be the workspace root or the trace stops at the app
+  // directory and every @awning/* package is left out of the image.
+  output: 'standalone',
+  outputFileTracingRoot: path.join(import.meta.dirname, '../..'),
   // Workspace packages ship TypeScript source; there is no build step between them.
   transpilePackages: ['@awning/ui-blocks', '@awning/spec', '@awning/tenancy', '@awning/db', '@awning/integrations'],
   poweredByHeader: false,

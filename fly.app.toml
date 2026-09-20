@@ -1,0 +1,52 @@
+# F-06 -- the dashboard: app.awning.au
+#
+#   fly deploy -c fly.app.toml --build-arg APP=app
+#
+app = 'awning-app'
+primary_region = 'syd'          # customers and the database are both in Sydney
+
+[build]
+  dockerfile = 'Dockerfile'
+  [build.args]
+    APP = 'app'
+
+# Migrations run once per release, before any new machine takes traffic, as the OWNER
+# role over the UNPOOLED connection — a pooler breaks advisory locks and DDL sessions.
+# A failed release_command aborts the deploy and the old machines keep serving.
+[deploy]
+  release_command = 'prisma migrate deploy --schema /repo/prisma/schema.prisma'
+  strategy = 'rolling'
+
+[env]
+  PORT = '8080'
+  NODE_ENV = 'production'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'off'    # the dashboard is the thing a customer is mid-edit in
+  auto_start_machines = true
+  min_machines_running = 2      # two, so a deploy or a host failure is not an outage
+
+  # Liveness: frequent and dependency-free. If this checked the database, one Neon blip
+  # would mark every machine unhealthy simultaneously.
+  [[http_service.checks]]
+    interval = '15s'
+    timeout = '3s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/api/health'
+
+  # Readiness: gates the ROLLING DEPLOY. A machine with a wrong connection string passes
+  # the shallow check and then fails every request; this catches it while the old
+  # machines are still up.
+  [[http_service.checks]]
+    interval = '60s'
+    timeout = '10s'
+    grace_period = '30s'
+    method = 'GET'
+    path = '/api/health/deep'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '1gb'                # sharp and the Next server; 512mb OOMs on image work

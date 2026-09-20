@@ -264,10 +264,27 @@ GitHub push → main
    │
    ├─ prisma migrate deploy   (expand-only; see below)
    │
-   ├─ fly deploy -a awning-renderer   (rolling, 2 machines, health-gated)
-   ├─ fly deploy -a awning-app        (rolling, 2 machines)
-   └─ fly deploy -a awning-worker     (1 machine, scale-to-zero)
+   ├─ fly deploy -c fly.app.toml      (rolling, 2 machines, health-gated,
+   │                                    release_command runs the migrations)
+   └─ fly deploy -c fly.render.toml   (rolling, 2 machines, health-gated)
 ```
+
+**Two apps, not three.** This plan originally had a third `awning-worker`. What got
+built is a `POST /api/cron` route on the dashboard behind a shared secret, driven by a
+Fly scheduled machine — the scheduled work is domains, dunning and the digest, twice a
+day, and a third deployable to build, secure and operate buys nothing at that volume. A
+job that outgrows the 300s request budget is what earns the worker app back.
+
+**The dashboard deploys first**, because its `release_command` applies the migrations.
+Migrations are expand-only, so the renderer's running code keeps working against the new
+schema for the minutes between the two deploys. The reverse order would put renderer
+code that expects a new column in front of a database that does not have it yet.
+
+**Health is checked at two depths.** `/api/health` is dependency-free and runs every 15s:
+if it touched the database, one Neon blip would mark every machine unhealthy at once.
+`/api/health/deep` checks both database roles and the cache, runs every 60s, and is what
+gates a rolling deploy — a machine with a bad connection string passes the shallow check
+and then fails every request.
 
 **Migration discipline:** expand → deploy → contract, never a destructive migration in the same release as the code that stops using the column. With one dev and 50 live customer websites, a bad migration at 9pm is the outage that ends the trial.
 

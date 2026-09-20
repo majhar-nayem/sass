@@ -1,0 +1,47 @@
+# F-06 -- the tenant renderer: every customer website, plus *.awningsites.com
+#
+#   fly deploy -c fly.render.toml --build-arg APP=render
+#
+# No release_command here. Migrations belong to exactly one app or two deploys race for
+# the same advisory lock; the dashboard owns them.
+app = 'awning-render'
+primary_region = 'syd'
+
+[build]
+  dockerfile = 'Dockerfile'
+  [build.args]
+    APP = 'render'
+
+[deploy]
+  strategy = 'rolling'
+
+[env]
+  PORT = '8080'
+  NODE_ENV = 'production'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Never scale to zero: this serves every customer's public website, and a cold start
+  # is a visitor watching a blank page.
+  auto_stop_machines = 'off'
+  auto_start_machines = true
+  min_machines_running = 2
+
+  [[http_service.checks]]
+    interval = '15s'
+    timeout = '3s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/api/health'
+
+  [[http_service.checks]]
+    interval = '60s'
+    timeout = '10s'
+    grace_period = '30s'
+    method = 'GET'
+    path = '/api/health/deep'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '1gb'

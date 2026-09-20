@@ -19,11 +19,15 @@ jobs:
     env:
       DATABASE_URL: postgresql://awning:awning@localhost:5432/awning?schema=public
       DIRECT_URL: postgresql://awning:awning@localhost:5432/awning?schema=public
+      # Without this the request-path client falls back to the OWNER role, which is
+      # RLS-exempt, and nine isolation tests fail describing symptoms rather than cause.
+      APP_DATABASE_URL: postgresql://awning_app:awning_app@localhost:5432/awning?schema=public
 
     steps:
       - uses: actions/checkout@v4
+      # No `version:` here — package.json's packageManager field is authoritative, and
+      # specifying both makes the action refuse to install anything at all.
       - uses: pnpm/action-setup@v4
-        with: { version: 9 }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
 
@@ -41,4 +45,14 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm db:migrate
+      # The migration creates awning_app without a password, because a migration is
+      # version-controlled. Give it the local one so the app role can actually connect.
+      - run: pnpm --filter @awning/db dev:roles
       - run: pnpm test
+
+      # The image is not exercised by any test, so without this it breaks quietly and
+      # the first person to find out is whoever is trying to deploy a fix.
+      - name: docker image builds
+        run: |
+          docker build --build-arg APP=render -t awning-render:ci .
+          docker build --build-arg APP=app    -t awning-app:ci .

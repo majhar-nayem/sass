@@ -9,9 +9,11 @@ export const maxDuration = 300
 /**
  * The scheduled sweep. Fly cron (or any scheduler) hits this with a shared secret.
  *
- * A route rather than a separate worker process for now: it is two jobs a day, and a
- * second deployable to operate is a cost with no benefit at this size. When the work
- * grows past a request timeout it moves to the worker app, which already exists.
+ * A route rather than a separate worker process: it is two jobs a day, and a third
+ * deployable to build, secure and operate would be a cost with no benefit at this size.
+ * `deploy/schedule-cron.sh` points a Fly scheduled machine at it; the GitHub Actions
+ * schedule in .github/workflows/cron.yml is the alternative when the hour matters.
+ * When a job outgrows the 300s request budget, that is when it earns a worker app.
  */
 function authorised(req: Request): boolean {
   const expected = process.env.CRON_SECRET

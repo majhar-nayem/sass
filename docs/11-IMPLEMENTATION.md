@@ -17,11 +17,12 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 
 ## Progress — 20 September 2026
 
-**Every ticket through week 8 is done except the two that need cloud accounts.**
+**Every ticket through week 8 is done except the one that needs a lawyer and F-11.**
 Sign up → trial → seven questions → a website → edit by typing → choose a plan →
 publish → custom domain → a visitor enquires → the tradie rings them back. A failed
 payment runs a schedule. An operator can see what a customer sees, and it is audited.
-**446 tests**, lint clean, both apps build.
+**455 tests**, lint clean, both apps build, and both ship as a Docker image that has
+been run and proven to serve a real tenant website.
 
 ```bash
 pnpm install && pnpm db:up && pnpm db:migrate
@@ -44,12 +45,13 @@ curl -X POST "localhost:3000/api/cron?job=all" -H "Authorization: Bearer $CRON_S
 | **O-04** | **Daily digest, AI spend alerts, tenant canaries** | **done** |
 | **O-05** | **Generated tenant privacy policy** | **done** |
 | **C-06** | **Stock pipeline, manifest contract, ingest — photo curation outstanding** | **done (see below)** |
-| F-06, F-11 | Fly/Neon/Upstash, Sentry | need accounts |
+| **F-06** | **Docker image, Fly configs, migrations, health, deploy pipeline** | **done (accounts outstanding)** |
+| F-11 | Sentry | needs account |
 | O-05b | Platform T&Cs / AUP | needs the lawyer, not code |
 
 ### Test counts
-`@awning/api` 131 · `@awning/tenancy` 82 · `@awning/spec` 84 · `@awning/ai` 74 ·
-`@awning/ui-blocks` 48 · `@awning/integrations` 17 · `@awning/db` 10
+`@awning/api` 131 · `@awning/spec` 84 · `@awning/tenancy` 82 · `@awning/ai` 74 ·
+`@awning/ui-blocks` 48 · `@awning/db` 19 · `@awning/integrations` 17
 
 ### C-06 is built but the pool is nearly empty
 
@@ -70,6 +72,44 @@ format, and the rules `pnpm stock:validate` enforces (credit and source URL requ
 Unsplash/Pexels; a generated image may never be typed as a photograph). Adding photos is
 editing one JSON file and running `pnpm stock:ingest` — no code changes. Until then
 generated sites lean on colour and type, which the templates already do well.
+
+### F-06 — everything but the accounts
+
+One Dockerfile, built twice (`--build-arg APP=app|render`), two Fly configs, a release
+script, a secrets script that gives the renderer a deliberately smaller set of keys, and
+`docs/12-DEPLOY.md`. Verified by running the images, not by reading them: the renderer
+container **serves a real tenant website** over HTTP, `prisma migrate deploy` runs from
+inside the image the way Fly's release command will, and both health endpoints return
+200 with both database roles and the cache reporting ok.
+
+**Two apps, not three.** The plan had an `awning-worker`; what exists is a cron route on
+the dashboard behind a shared secret. A third deployable to build, secure and operate
+buys nothing for two jobs a day. `docs/02-ARCHITECTURE.md` §8 has been corrected.
+
+Still needs accounts: Neon, Upstash, Fly, R2/Cloudflare. Nothing about Neon's pooler,
+Upstash's connection limits or Fly's health-gated rolling deploy has been exercised.
+
+### Three defects found by deploying, not by reviewing
+
+**CI has never run a single test.** Every push since the first has failed at step two:
+`pnpm/action-setup` was given `version: 9` while package.json declares
+`packageManager: pnpm@9.15.9`, and the action refuses to install when both are set. I
+had been reporting green local runs without checking the actual runs. So the
+generated-artefact drift gate, the isolation matrix and everything else have been
+decorative in CI since the beginning.
+
+**The request path would have connected as the database owner in production.**
+`APP_DATABASE_URL` fell back to `DATABASE_URL`, Postgres exempts a table owner from RLS,
+and every tenant boundary in the product would have been off at once — with nothing
+visibly wrong until one customer saw another's data. Both apps now refuse to boot in
+that state, verified by running a container without the variable: it exits 1 and never
+serves a request. CI never set it either, which would have failed nine isolation tests
+in confusing ways once CI could actually run them.
+
+**Next's file tracing does not copy Prisma's query engine** into the standalone output.
+The container booted, passed a shallow health check, and then failed every request that
+touched the database. No test would have caught this, because no test runs the image.
+CI now builds both images for that reason.
 
 ### Still blocked on credentials
 `ANTHROPIC_API_KEY` — **A-03 has still never made a call**, and the digest now reports
