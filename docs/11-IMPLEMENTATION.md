@@ -17,41 +17,46 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 
 ## Progress — 20 September 2026
 
-**The product works end to end.** Sign up → seven questions → a website → edit it by
-typing → undo → publish → it renders on the tenant hostname, responsive and accessible.
-**302 tests**, lint clean, both apps build. Remote: `github.com/majhar-nayem/sass`.
+**Weeks 1–6 of the plan are complete.** Sign up → seven questions → a website → edit by
+typing → publish → a visitor fills in the form → the tradie gets an email and can ring
+them back in one tap. **319 tests**, lint clean, both apps build.
+Remote: `github.com/majhar-nayem/sass`.
 
 ```bash
 pnpm install && pnpm db:up && pnpm db:migrate
 pnpm verify
-pnpm --filter @awning/app dev      # :3000  sign up, then /onboarding
-pnpm --filter @awning/render dev   # :3001  tenant sites + /preview
+pnpm --filter @awning/app dev      # :3000  sign up → /onboarding → /editor → /inbox
+pnpm --filter @awning/render dev   # :3001  tenant sites, /preview, forms, sitemap
+open http://localhost:8025         # Mailpit: every enquiry email
 ```
 
 | | Ticket | State |
 |---|---|---|
-| F-01…F-05, F-07…F-09 | Foundation, auth, orgs, tRPC, dashboard | **done** |
-| F-10 | Isolation matrix generated from the router | **done** — has now caught 12 new procedures across two sessions |
-| S-01…S-03 | Spec package, generators, spec migrations | **done** |
-| R-01, R-02 | Renderer, tenant resolution, subdomains | **done** |
+| F-01…F-05, F-07…F-10 | Foundation, auth, orgs, tRPC, isolation matrix | **done** |
+| S-01…S-03, R-01, R-02 | Spec package, migrations, renderer, tenancy | **done** |
 | C-01…C-05 | 10 components / 33 variants, Tailwind, axe gate | **done** |
-| A-01, A-02, A-04, A-05, A-07 | Client, cached prefix, validation, retries, spend controls | **done** |
-| A-03 | Generation via structured outputs | **written, still unexercised** — needs an API key |
-| A-06 | Eval harness, 30 briefs (10 hostile) | **done offline**; needs a key to run live |
-| A-08…A-11 | Edit tool calls, router, versioning, fast path | **done** |
-| **P-01** | **Onboarding wizard + autosaved drafts** | **done** |
-| **P-03** | **Template system (2 industries' worth of palettes ×18)** | **done** — built as the generation fallback |
-| **P-05** | **Chat editor** | **done** |
-| **P-06** | **Live preview, signed tokens** | **done** |
-| P-04 | Publish + subdomain + first-publish email | **partial** — publish works; email pending Resend |
-| P-07…P-11 | Uploads, forms, inbox, CTAs, SEO | **next** |
+| A-01…A-11 | AI client, prompts, validation, spend controls, editing, versioning | **done** (A-03 unexercised) |
+| P-01, P-03 | Onboarding wizard, template system | **done** |
+| **P-04** | **Publish + subdomain + first-publish email** | **done** — email path live via Mailpit |
+| P-05, P-06 | Chat editor, signed live preview | **done** |
+| **P-07** | **Uploads: sharp re-encode, EXIF strip, R2 + local drivers** | **done** — verified on a GPS-tagged photo |
+| **P-08** | **Contact forms: honeypot, Turnstile, rate limit** | **done** |
+| **P-09** | **Lead inbox + CSV export + unread count** | **done** |
+| **P-10** | **Click beacons for call / WhatsApp** | **done** |
+| **P-11** | **sitemap.xml, robots.txt, JSON-LD LocalBusiness** | **done** |
 | C-06 | Stock image pool | not started |
 | F-06 | Fly ×3 + Neon + Upstash | deferred — local Postgres/Redis |
 | F-11 | Sentry | not started — needs a DSN |
+| M-01, M-02 | Stripe subscriptions + publish gate | **next** |
 
 ### Test counts
 `@awning/tenancy` 82 · `@awning/ai` 74 · `@awning/spec` 64 · `@awning/ui-blocks` 48 ·
-`@awning/api` 24 · `@awning/db` 10
+`@awning/api` 24 · `@awning/integrations` 17 · `@awning/db` 10
+
+### Still blocked on credentials
+`ANTHROPIC_API_KEY` (A-03 has never made a call; the template path covers for it) ·
+Cloudflare, Fly, Neon, R2 (F-06) · Sentry DSN (F-11) · Turnstile secret (the honeypot and
+rate limit work without it).
 
 ### Defects found by building, not by review
 
@@ -62,20 +67,23 @@ Next's edge runtime.
 
 **Better Auth's default id format breaks a uuid primary key.**
 
-**`autoContrast` used a luminance threshold of 0.45 when the crossover is 0.179**, so
-every mid-tone brand colour got white text; the demo's own buttons failed AA.
+**`autoContrast` used a luminance threshold of 0.45 when the crossover is 0.179**, and
+**the contrast validator could never fire** because it checked the wrong pairing.
 
-**The contrast validator could never fire** — it checked whether a colour had *some*
-legible foreground (always true) instead of the pairings the renderer uses.
+**`import.meta.dirname` is undefined once a bundler processes a module.**
 
-**`import.meta.dirname` is undefined once a bundler processes a module**, which made
-`@awning/ai` unimportable by the app while every test passed.
+**Next excludes underscore-prefixed folders from routing**, so `/_preview` 404'd.
 
-**Next excludes underscore-prefixed folders from routing**, so `/_preview` was never a
-route and every preview 404'd even with a valid token.
+**The template threw on an 80-character business name.**
 
-**The template threw on an 80-character business name** — the schema allows 80 for the
-business name and 70 for a page title, and real trading names land between the two.
+**A barrel export in a transpiled workspace package makes every consumer pay for every
+dependency** — the form route was handed sharp's native binary by a re-export.
+
+**`serverExternalPackages` does not reach a native module imported through a transpiled
+workspace package.**
+
+**Two apps, two working directories, two storage roots** — a cwd-relative default meant
+an uploaded image never appeared on the site.
 
 ## 0. How to read a ticket
 
