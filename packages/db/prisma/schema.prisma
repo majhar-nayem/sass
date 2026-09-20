@@ -87,6 +87,7 @@ model audit_log {
 
   @@index([action, created_at(sort: Desc)])
   @@index([org_id, created_at(sort: Desc)])
+  @@index([entity_type, entity_id, created_at(sort: Desc)], map: "audit_log_entity_idx")
 }
 
 model auth_accounts {
@@ -118,7 +119,7 @@ model auth_sessions {
   created_at                                 DateTime @default(now()) @db.Timestamptz(6)
   token                                      String   @unique
   updated_at                                 DateTime @default(now()) @db.Timestamptz(6)
-  users_auth_sessions_impersonated_byTousers users?   @relation("auth_sessions_impersonated_byTousers", fields: [impersonated_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_auth_sessions_impersonated_byTousers users?   @relation("auth_sessions_impersonated_byTousers", fields: [impersonated_by], references: [id], onDelete: Cascade, onUpdate: NoAction)
   users_auth_sessions_user_idTousers         users    @relation("auth_sessions_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([user_id])
@@ -614,6 +615,8 @@ model subscriptions {
   created_at             DateTime      @default(now()) @db.Timestamptz(6)
   updated_at             DateTime      @default(now()) @db.Timestamptz(6)
   dunning_emails_sent    Json          @default("[]")
+  ai_actions_bonus       Int           @default(0)
+  ai_bonus_expires_at    DateTime?     @db.Timestamptz(6)
   organizations          organizations @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   plans                  plans         @relation(fields: [plan_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
 

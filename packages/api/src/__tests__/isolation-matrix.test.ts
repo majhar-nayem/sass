@@ -88,6 +88,16 @@ const COVERAGE: Record<string, Strategy> = {
   'domain.detach': { kind: 'isolated', input: (b) => ({ domainId: b.domainId }), mutates: true },
   'domain.sweep': { kind: 'platform' },
 
+  // The operator console. Every one of these is platform-only; the platform test below
+  // proves a tenant gets NOT_FOUND from each.
+  'admin.orgs': { kind: 'platform' },
+  'admin.audit': { kind: 'platform' },
+  'admin.impersonate': { kind: 'platform' },
+  'admin.stopImpersonating': { kind: 'platform' },
+  'admin.grantAi': { kind: 'platform' },
+  'admin.digest': { kind: 'platform' },
+  'admin.canaries': { kind: 'platform' },
+
   'ai.quota': { kind: 'isolated', input: () => undefined },
   'ai.chat': {
     kind: 'isolated',

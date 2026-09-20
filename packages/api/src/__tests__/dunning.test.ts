@@ -103,11 +103,13 @@ describe('runDunning against the database', () => {
   const siteStatus = async () =>
     (await rawPrisma.sites.findUnique({ where: { id: siteId }, select: { status: true } }))?.status
 
+  /**
+   * Asserts on this org's outcome, not on the run's totals. The sweep is global by
+   * design, so a shared database makes a total a measure of the other tests.
+   */
   it('day 1: emails and leaves the site published', async () => {
     await agePastDue(1)
-    const run = await runDunning(db())
-    expect(run.emailed).toBe(1)
-    expect(run.suspended).toBe(0)
+    await runDunning(db())
     expect(await siteStatus()).toBe('published')
     expect(captured.sent).toHaveLength(1)
     expect(captured.sent[0]!.to).toBe('dave@example.test')
@@ -122,8 +124,7 @@ describe('runDunning against the database', () => {
 
   it('day 14: suspends', async () => {
     await agePastDue(14)
-    const run = await runDunning(db())
-    expect(run.suspended).toBe(1)
+    await runDunning(db())
     expect(await siteStatus()).toBe('suspended')
   })
 
@@ -133,8 +134,10 @@ describe('runDunning against the database', () => {
     const after = await rawPrisma.subscriptions.findUnique({ where: { org_id: orgId } })
     expect(after?.dunning_emails_sent).toEqual([1])
 
-    const second = await runDunning(db())
-    expect(second.emailed).toBe(0)
+    const before = captured.sent.length
+    await runDunning(db())
+    expect(captured.sent.filter((m) => m.to === 'dave@example.test')).toHaveLength(1)
+    void before
   })
 
   /**

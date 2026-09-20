@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'node:crypto'
-import { runDunning, sweepDomains } from '@awning/api'
+import { runDunning, sendDigest, sweepDomains } from '@awning/api'
 import { withoutOrgContext } from '@awning/db'
 
 export const dynamic = 'force-dynamic'
@@ -33,6 +33,9 @@ export async function POST(req: Request) {
       out.domains = await withoutOrgContext('cron', (db) => sweepDomains(db))
     if (job === 'all' || job === 'dunning')
       out.dunning = await withoutOrgContext('cron', (db) => runDunning(db))
+    // Digest last: it reports on what the jobs above just did.
+    if (job === 'all' || job === 'digest')
+      out.digest = await withoutOrgContext('cron', (db) => sendDigest(db))
   } catch (e) {
     console.error('[cron] job failed', job, (e as Error).message)
     return Response.json({ ok: false, error: (e as Error).message, partial: out }, { status: 500 })

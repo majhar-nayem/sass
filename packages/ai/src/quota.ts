@@ -79,7 +79,12 @@ export async function checkQuota(
   return withoutOrgContext('cron', async (db) => {
     const sub = await db.subscriptions.findUnique({
       where: { org_id: orgId },
-      select: { status: true, plans: { select: { ai_actions_month: true, ai_hard_cap_cents: true } } },
+      select: {
+        status: true,
+        ai_actions_bonus: true,
+        ai_bonus_expires_at: true,
+        plans: { select: { ai_actions_month: true, ai_hard_cap_cents: true } },
+      },
     })
 
     // Trialing counts: the whole funnel depends on generating before they pay.
@@ -104,7 +109,9 @@ export async function checkQuota(
 
     const used = rows._count._all
     const spentCents = Number(rows._sum.cost_cents_aud ?? 0)
-    const limit = plan.ai_actions_month
+    // An operator grant on top of the plan's allowance, ignored once it has expired.
+    const bonusLive = sub.ai_bonus_expires_at && sub.ai_bonus_expires_at > now
+    const limit = plan.ai_actions_month + (bonusLive ? sub.ai_actions_bonus : 0)
     const capCents = plan.ai_hard_cap_cents
 
     const base = { used, limit, spentCents, capCents }
