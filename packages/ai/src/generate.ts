@@ -1,16 +1,11 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { WEBSITE_SPEC_JSON_SCHEMA } from '@awning/spec/generated/schema.js'
 import { validateSpec, type SpecError, type ValidationCtx, type WebsiteSpec } from '@awning/spec'
 import { runAiAction } from './client.js'
 import { buildSystemPrefix, businessInput } from './prompt.js'
 import { packFor } from './industries.js'
 
-const SCHEMA_PATH = resolve(import.meta.dirname, '../../spec/generated/website-spec.schema.json')
-let schemaCache: Record<string, unknown> | null = null
-function schema(): Record<string, unknown> {
-  schemaCache ??= JSON.parse(readFileSync(SCHEMA_PATH, 'utf8')) as Record<string, unknown>
-  return schemaCache
-}
+const schema = (): Record<string, unknown> =>
+  WEBSITE_SPEC_JSON_SCHEMA as unknown as Record<string, unknown>
 
 export interface Brief {
   businessName: string

@@ -56,6 +56,48 @@ const COVERAGE: Record<string, Strategy> = {
   'lead.list': { kind: 'isolated', input: (b) => ({ siteId: b.siteId }) },
   'lead.markRead': { kind: 'isolated', input: (b) => ({ leadId: b.leadId }), mutates: true },
   'lead.archive': { kind: 'isolated', input: (b) => ({ leadId: b.leadId }), mutates: true },
+
+  // The editing surface. ai.chat is listed as isolated rather than skipped on the
+  // grounds that it calls a model: asking for another org's site must fail at the draft
+  // lookup, BEFORE any model call, and this proves it does — a version that reached the
+  // API would both leak and cost money.
+  'ai.quota': { kind: 'isolated', input: () => undefined },
+  'ai.chat': {
+    kind: 'isolated',
+    input: (b) => ({ siteId: b.siteId, message: 'make the hero smaller' }),
+    mutates: true,
+  },
+  'ai.undo': { kind: 'isolated', input: (b) => ({ siteId: b.siteId }), mutates: true },
+  'ai.restore': {
+    kind: 'isolated',
+    input: (b) => ({ siteId: b.siteId, versionId: b.versionId }),
+    mutates: true,
+  },
+  'ai.setText': {
+    kind: 'isolated',
+    input: (b) => ({ siteId: b.siteId, sectionId: 'hero-main', path: 'heading', value: 'pwned' }),
+    mutates: true,
+  },
+  'ai.setThemeColour': {
+    kind: 'isolated',
+    input: (b) => ({ siteId: b.siteId, key: 'primary', value: '#ff0000' }),
+    mutates: true,
+  },
+  'ai.toggleSection': {
+    kind: 'isolated',
+    input: (b) => ({ siteId: b.siteId, sectionId: 'hero-main', hidden: true }),
+    mutates: true,
+  },
+  'ai.reorderSections': {
+    kind: 'isolated',
+    input: (b) => ({ siteId: b.siteId, pageId: 'home', sectionIds: ['hero-main'] }),
+    mutates: true,
+  },
+  'ai.replaceImage': {
+    kind: 'isolated',
+    input: (b) => ({ siteId: b.siteId, sectionId: 'hero-main', path: 'image', assetId: 'asset_pwned123' }),
+    mutates: true,
+  },
 }
 
 const createCaller = createCallerFactory(appRouter)
@@ -223,6 +265,10 @@ describe('cross-tenant writes', () => {
     expect(site?.name).toBe('Site b')
     expect(site?.status).toBe('draft')
     expect(site?.published_version_id).toBeNull()
+    // The editing procedures write a new site_version and move the draft pointer.
+    // Neither may happen for an org that does not own the site.
+    expect(site?.draft_version_id).toBe(B.ids.versionId)
+    expect(await rawPrisma.site_versions.count({ where: { site_id: B.ids.siteId } })).toBe(1)
 
     const org = await rawPrisma.organizations.findUnique({ where: { id: B.ids.orgId } })
     expect(org?.name).toBe('Org b')

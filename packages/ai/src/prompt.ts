@@ -1,6 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import type Anthropic from '@anthropic-ai/sdk'
+import { COMPONENT_CATALOGUE } from '@awning/spec/generated/catalogue.js'
 import { packFor, type IndustryPack } from './industries.js'
 
 /**
@@ -16,16 +15,9 @@ import { packFor, type IndustryPack } from './industries.js'
  * re-sending the catalogue and one dominated by actual work.
  */
 
-const CATALOGUE_PATH = resolve(import.meta.dirname, '../../spec/generated/catalogue.md')
-
-let catalogueCache: string | null = null
-function catalogue(): string {
-  // Read once per process. Re-reading would be harmless for correctness but would make
-  // the prefix dependent on filesystem timing, which is exactly the kind of thing that
-  // silently breaks caching.
-  catalogueCache ??= readFileSync(CATALOGUE_PATH, 'utf8')
-  return catalogueCache
-}
+// Imported, not read from disk. A bundler leaves `import.meta.dirname` undefined, so a
+// filesystem read here passes every test and throws the moment the app imports it.
+const catalogue = (): string => COMPONENT_CATALOGUE
 
 /** The hard rules. Verbatim from schema/ai-system-prompt.md §A — one source of truth. */
 export const SHARED_RULES = `You design websites for Australian small businesses.

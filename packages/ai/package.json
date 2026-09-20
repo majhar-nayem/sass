@@ -14,7 +14,12 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
     "@awning/db": "workspace:*",
-    "@awning/spec": "workspace:*"
+    "@awning/spec": "workspace:*",
+    "zod": "^3.23.8"
   },
-  "devDependencies": { "tsx": "^4.19.2", "typescript": "^5.6", "vitest": "^2" }
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.6",
+    "vitest": "^2"
+  }
 }
