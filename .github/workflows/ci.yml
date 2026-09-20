@@ -32,6 +32,9 @@ jobs:
         with: { node-version: 22, cache: pnpm }
 
       - run: pnpm install --frozen-lockfile
+      # Prisma's types come from the generated client, not from the schema. Without this
+      # every model is `{}` and the build fails on a field that plainly exists.
+      - run: pnpm --filter @awning/db exec prisma generate
       - run: pnpm gen:spec
       # Generated artefacts must match their source. If this fails, someone
       # hand-edited a generated file. See docs/05-COMPONENTS.md §1.
