@@ -70,6 +70,24 @@ Requires a real end date from the owner. If you do not have one, call
 ask_user — do not invent a deadline. A fake countdown is misleading conduct under the
 Australian Consumer Law.
 
+## contact
+variants: details | split | map-split | compact
+props:
+  heading?
+  subheading?
+  showPhone?
+  showEmail?
+  showAddress?
+  showHours?
+  showServiceAreas?
+  showMap?
+  note?
+
+Contact details, pulled from the business record rather than written by
+you — never type a phone number or address into props. Turn on only what the business
+actually has. For a trade, showServiceAreas is worth more than showAddress: people
+search "plumber Salisbury", not the office address.
+
 ## contactForm
 variants: stacked | split | inline
 props:

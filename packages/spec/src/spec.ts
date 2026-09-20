@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import {
-  contactForm, countdown, cta, hero, imageText, services, testimonials,
+  contact, contactForm, countdown, cta, hero, imageText, services, testimonials,
 } from './components/index.js'
 import { sectionSchema } from './define.js'
 import { AssetId, Cta, Font, Hex, Href, Id, Industry, IsoDateTime, Style } from './primitives.js'
@@ -18,6 +18,7 @@ export const Section = z.discriminatedUnion('type', [
   sectionSchema(imageText),
   sectionSchema(testimonials),
   sectionSchema(countdown),
+  sectionSchema(contact),
   sectionSchema(contactForm),
   sectionSchema(cta),
 ])

@@ -1195,6 +1195,108 @@
                         },
                         "type": {
                           "type": "string",
+                          "const": "contact"
+                        },
+                        "variant": {
+                          "type": "string",
+                          "enum": [
+                            "details",
+                            "split",
+                            "map-split",
+                            "compact"
+                          ]
+                        },
+                        "hidden": {
+                          "type": "boolean",
+                          "default": false
+                        },
+                        "background": {
+                          "type": "string",
+                          "enum": [
+                            "default",
+                            "surface",
+                            "primary",
+                            "accent",
+                            "dark",
+                            "image"
+                          ],
+                          "default": "default"
+                        },
+                        "spacing": {
+                          "type": "string",
+                          "enum": [
+                            "none",
+                            "sm",
+                            "md",
+                            "lg",
+                            "xl"
+                          ],
+                          "default": "lg"
+                        },
+                        "anchor": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9-]{2,40}$"
+                        },
+                        "props": {
+                          "type": "object",
+                          "properties": {
+                            "heading": {
+                              "type": "string",
+                              "maxLength": 70
+                            },
+                            "subheading": {
+                              "type": "string",
+                              "maxLength": 200
+                            },
+                            "showPhone": {
+                              "type": "boolean",
+                              "default": true
+                            },
+                            "showEmail": {
+                              "type": "boolean",
+                              "default": true
+                            },
+                            "showAddress": {
+                              "type": "boolean",
+                              "default": true
+                            },
+                            "showHours": {
+                              "type": "boolean",
+                              "default": false
+                            },
+                            "showServiceAreas": {
+                              "type": "boolean",
+                              "default": false
+                            },
+                            "showMap": {
+                              "type": "boolean",
+                              "default": false
+                            },
+                            "note": {
+                              "type": "string",
+                              "maxLength": 220
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "type",
+                        "variant",
+                        "props"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$"
+                        },
+                        "type": {
+                          "type": "string",
                           "const": "contactForm"
                         },
                         "variant": {

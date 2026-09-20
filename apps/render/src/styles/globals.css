@@ -1,0 +1,67 @@
+@import 'tailwindcss';
+
+/* Tailwind v4 scans the files it is pointed at. The component library lives in a
+   workspace package, so it has to be named explicitly or every class in it is purged. */
+@source '../../../../packages/ui-blocks/src';
+
+/*
+ * Theme tokens map onto the CSS custom properties the renderer injects per tenant
+ * (packages/ui-blocks/src/theme.ts). One stylesheet serves every site; a tenant's
+ * palette is ~15 inlined variables, so a colour change costs nothing at render time
+ * and the stylesheet stays cacheable forever.
+ */
+@theme {
+  --color-brand: var(--brand-primary);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-secondary: var(--brand-secondary);
+  --color-brand-neutral: var(--brand-neutral);
+  --color-brand-surface: var(--brand-surface);
+  --color-brand-on-primary: var(--brand-on-primary);
+  --color-brand-on-accent: var(--brand-on-accent);
+
+  --font-heading: var(--font-heading);
+  --font-body: var(--font-body);
+}
+
+:root {
+  /* Sensible defaults so a component renders correctly in isolation — in Storybook,
+     in a test, or if a theme block ever fails to inject. */
+  --brand-primary: #12324a;
+  --brand-accent: #e4622b;
+  --brand-secondary: #f3f5f7;
+  --brand-neutral: #16181a;
+  --brand-surface: #f3f5f7;
+  --brand-on-primary: #ffffff;
+  --brand-on-accent: #ffffff;
+  --font-heading: Georgia, serif;
+  --font-body: system-ui, sans-serif;
+  --radius: 10px;
+  --section-y: 4.5rem;
+  --shadow: 0 4px 20px rgb(0 0 0 / 0.08);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  margin: 0;
+}
+
+/* Visible focus for keyboard users on every interactive element. Never outline:none. */
+:focus-visible {
+  outline: 2px solid var(--brand-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

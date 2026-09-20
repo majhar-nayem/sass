@@ -174,6 +174,10 @@ Target: **mobile Lighthouse ≥ 85, LCP < 2.5s on 4G.** A tradie's customer is o
 WCAG 2.1 AA is cheap now and brutal later, and it protects tenants under the DDA:
 
 - `autoContrast()` picks the foreground for any brand colour and the generation validator rejects palettes that fail 4.5:1 on body text.
+
+> ⚠️ **Bug found by the C-05 gate, worth recording.** The first `autoContrast` chose by a luminance threshold of `0.45`. The real crossover is **0.179**, so every mid-tone colour — the oranges, golds and greens a tradie or a butcher actually picks — got white text. The demo site's own accent (`#E4622B`) was rendering white on orange at **3.45:1**, failing AA on every button. Now it compares both candidate ratios, which has no magic number to get wrong.
+>
+> Second-order detail from the same fix: the dark candidate must be **pure black, not `#111111`**. With `#111111` the worst case across the colour space is 4.33:1, leaving a band of mid-tone colours where *neither* foreground reaches AA. Pure black lifts the worst case to 4.58:1, so a legible foreground always exists. There is a property test over the colour cube asserting exactly that.
 - Semantic landmarks (`header`/`nav`/`main`/`footer`), one `h1` per page, no heading-level skips (validated in the spec, not just the DOM).
 - Visible focus rings, never `outline:none`.
 - `alt` is required by the schema — a content image without it cannot exist.

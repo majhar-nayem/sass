@@ -1,11 +1,13 @@
 import { cache } from 'react'
 import { withoutOrgContext } from '@awning/db'
-import { migrateSpec, validateSpec, type WebsiteSpec } from '@awning/spec'
+import { migrateSpec, validateSpec, type BusinessFacts, type WebsiteSpec } from '@awning/spec'
 import { resolveTenant, type TenantRef } from '@awning/tenancy'
 
 export interface LoadedSite {
   tenant: TenantRef
   spec: WebsiteSpec
+  /** From the sites row, not the spec: these are facts, not design (see spec/business.ts). */
+  business: BusinessFacts
 }
 
 export type LoadResult =
@@ -35,7 +37,18 @@ export const loadSiteByHost = cache(async function loadSiteByHost(
   const site = await withoutOrgContext('tenant-resolution', async (db) =>
     db.sites.findUnique({
       where: { id: tenant.siteId },
-      select: { site_versions_sites_published_version_idTosite_versions: { select: { spec_json: true } } },
+      select: {
+        name: true,
+        business_phone: true,
+        business_email: true,
+        whatsapp_number: true,
+        business_address: true,
+        service_areas: true,
+        socials: true,
+        opening_hours: true,
+        organizations: { select: { abn: true } },
+        site_versions_sites_published_version_idTosite_versions: { select: { spec_json: true } },
+      },
     }),
   )
 
@@ -56,5 +69,17 @@ export const loadSiteByHost = cache(async function loadSiteByHost(
   if (!result.ok)
     return { kind: 'broken', reason: result.errors.slice(0, 3).map((e) => `${e.path} ${e.message}`).join('; ') }
 
-  return { kind: 'ok', site: { tenant, spec: result.spec } }
+  const business: BusinessFacts = {
+    businessName: site.name,
+    phone: site.business_phone,
+    email: site.business_email,
+    whatsapp: site.whatsapp_number,
+    abn: site.organizations?.abn ?? null,
+    address: (site.business_address as BusinessFacts['address']) ?? null,
+    serviceAreas: site.service_areas ?? [],
+    socials: (site.socials as Record<string, string>) ?? {},
+    openingHours: (site.opening_hours as BusinessFacts['openingHours']) ?? null,
+  }
+
+  return { kind: 'ok', site: { tenant, spec: result.spec, business } }
 })

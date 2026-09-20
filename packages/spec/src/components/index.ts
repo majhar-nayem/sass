@@ -139,6 +139,26 @@ export const contactForm = defineComponent({
 than eight fields. For trades, add a "job type" select when the services are distinct.`,
 })
 
+export const contact = defineComponent({
+  type: 'contact',
+  variants: ['details', 'split', 'map-split', 'compact'],
+  props: z.object({
+    heading: z.string().max(70).optional(),
+    subheading: z.string().max(200).optional(),
+    showPhone: z.boolean().default(true),
+    showEmail: z.boolean().default(true),
+    showAddress: z.boolean().default(true),
+    showHours: z.boolean().default(false),
+    showServiceAreas: z.boolean().default(false),
+    showMap: z.boolean().default(false),
+    note: z.string().max(220).optional(),
+  }),
+  aiGuidance: `Contact details, pulled from the business record rather than written by
+you — never type a phone number or address into props. Turn on only what the business
+actually has. For a trade, showServiceAreas is worth more than showAddress: people
+search "plumber Salisbury", not the office address.`,
+})
+
 export const cta = defineComponent({
   type: 'cta',
   variants: ['banner', 'split', 'centered', 'strip'],
@@ -151,4 +171,13 @@ export const cta = defineComponent({
   aiGuidance: `One clear action. Verbs, specific: "Call for a free quote", not "Learn more".`,
 })
 
-export const COMPONENTS = [hero, services, imageText, testimonials, countdown, contactForm, cta] as const
+export const COMPONENTS = [
+  hero,
+  services,
+  imageText,
+  testimonials,
+  countdown,
+  contact,
+  contactForm,
+  cta,
+] as const

@@ -51,6 +51,15 @@
       ]
     },
     {
+      "type": "contact",
+      "variants": [
+        "details",
+        "split",
+        "map-split",
+        "compact"
+      ]
+    },
+    {
       "type": "contactForm",
       "variants": [
         "stacked",
