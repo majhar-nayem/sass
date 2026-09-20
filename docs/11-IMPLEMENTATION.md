@@ -17,54 +17,63 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 
 ## Progress — 20 September 2026
 
-**Weeks 1–8 of the plan are done.** Sign up → trial → seven questions → a website →
-edit by typing → choose a plan → publish → custom domain → a visitor enquires → the
-tradie rings them back. A failed payment runs a schedule rather than flipping a switch.
-**396 tests**, lint clean, both apps build.
+**Every ticket through week 8 is done except C-06 and the two that need cloud accounts.**
+Sign up → trial → seven questions → a website → edit by typing → choose a plan →
+publish → custom domain → a visitor enquires → the tradie rings them back. A failed
+payment runs a schedule. An operator can see what a customer sees, and it is audited.
+**426 tests**, lint clean, both apps build.
 
 ```bash
 pnpm install && pnpm db:up && pnpm db:migrate
 pnpm verify
 pnpm --filter @awning/app dev      # :3000  /onboarding /editor /inbox /domains
-pnpm --filter @awning/render dev   # :3001  tenant sites, /preview, forms, sitemap
-curl -X POST localhost:3000/api/cron?job=all -H "Authorization: Bearer $CRON_SECRET"
+pnpm --filter @awning/render dev   # :3001  tenant sites, /preview, /privacy, forms
+curl -X POST "localhost:3000/api/cron?job=all" -H "Authorization: Bearer $CRON_SECRET"
 ```
 
 | | Ticket | State |
 |---|---|---|
 | F-01…F-05, F-07…F-10 | Foundation, auth, orgs, tRPC, isolation matrix | **done** |
-| S-01…S-03, R-01…R-03 | Spec package, migrations, renderer, tenancy, caching | **done** |
+| S-01…S-03, R-01…R-03 | Spec, migrations, renderer, tenancy, caching | **done** |
 | C-01…C-05 | 10 components / 33 variants, Tailwind, axe gate | **done** |
-| A-01…A-11 | AI client, prompts, validation, spend controls, editing, versioning | **done** (A-03 unexercised) |
+| A-01…A-11 | AI client, validation, spend controls, editing, versioning | **done** (A-03 unexercised) |
 | P-01, P-03…P-11 | Onboarding, templates, editor, preview, uploads, forms, inbox, SEO | **done** |
-| M-01, M-02 | Stripe subscriptions, idempotent webhooks, publish gate | **done** |
-| **O-01** | **Custom domains: Cloudflare hostnames, state machine, 8 diagnostics** | **done** — concierge |
-| **O-03** | **Dunning: 7 days of email, owner banner, suspend at 14** | **done** — walked against a live site |
-| O-02, O-04, O-05 | Admin console, monitoring, legal | not started |
-| C-06 | Stock image pool | not started |
-| F-06, F-11 | Fly/Neon/Upstash, Sentry | deferred — need accounts |
-| O-06 | Self-serve domain wizard | week 9+ backlog |
+| M-01, M-02 | Stripe, idempotent webhooks, publish gate | **done** |
+| O-01, O-03 | Custom domains, dunning | **done** |
+| **O-02** | **Operator console: audited impersonation, AI grants, audit trail** | **done** |
+| **O-04** | **Daily digest, AI spend alerts, tenant canaries** | **done** |
+| **O-05** | **Generated tenant privacy policy** | **done** |
+| C-06 | Stock image pool | **next** |
+| F-06, F-11 | Fly/Neon/Upstash, Sentry | need accounts |
+| O-05b | Platform T&Cs / AUP | needs the lawyer, not code |
 
 ### Test counts
-`@awning/api` 101 · `@awning/tenancy` 82 · `@awning/ai` 74 · `@awning/spec` 64 ·
+`@awning/api` 131 · `@awning/tenancy` 82 · `@awning/ai` 74 · `@awning/spec` 64 ·
 `@awning/ui-blocks` 48 · `@awning/integrations` 17 · `@awning/db` 10
 
 ### Still blocked on credentials
-`ANTHROPIC_API_KEY` (A-03 has never made a call) · Stripe keys + price ids · Cloudflare
-token + zone (the domain state machine runs without it, registering as `pending`) ·
-Fly/Neon/R2 · Sentry DSN · Turnstile secret.
+`ANTHROPIC_API_KEY` — **A-03 has still never made a call**, and the digest now reports
+it honestly as a 100% AI failure rate. Also Stripe keys, Cloudflare token, Fly/Neon/R2,
+Sentry DSN, Turnstile secret. Everything runs without them: templates cover generation,
+local disk covers R2, Mailpit covers Resend, and the domain state machine registers as
+`pending` and waits.
 
 ### Defects found by building, not by review
 
 **A React Context Provider cannot be rendered from a server component** — every tenant
-page 500'd while the accessibility suite passed, because `renderToStaticMarkup` does not
-enforce the server/client boundary.
+page 500'd while the a11y suite passed, because `renderToStaticMarkup` does not enforce
+the server/client boundary.
 
-**No signup ever got a subscription row**, so generation always fell back to a template
-and would never have run even with an API key.
+**No signup ever got a subscription row**, so generation always fell back to a template.
 
-**The versioned cache key in `02-ARCHITECTURE.md` §7 cannot work** — Prisma cannot run on
-Next's edge runtime.
+**`auth_sessions.impersonated_by` had no ON DELETE rule** — removing an operator was
+blocked, and their impersonated sessions stayed live meanwhile.
+
+**Assertions on a global sweep's totals** made several dunning tests a measure of
+whatever else the suite had created.
+
+**The versioned cache key in `02-ARCHITECTURE.md` §7 cannot work** — Prisma cannot run
+on Next's edge runtime.
 
 **Every "no site here" state must return 404, not 200.**
 
