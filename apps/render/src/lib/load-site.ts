@@ -5,6 +5,8 @@ import { resolveTenant, type TenantRef } from '@awning/tenancy'
 
 export interface LoadedSite {
   tenant: TenantRef
+  /** assetId -> public URL for every image this site owns. */
+  assets: Record<string, string>
   spec: WebsiteSpec
   /** From the sites row, not the spec: these are facts, not design (see spec/business.ts). */
   business: BusinessFacts
@@ -81,5 +83,10 @@ export const loadSiteByHost = cache(async function loadSiteByHost(
     openingHours: (site.opening_hours as BusinessFacts['openingHours']) ?? null,
   }
 
-  return { kind: 'ok', site: { tenant, spec: result.spec, business } }
+  const assetRows = await withoutOrgContext('tenant-resolution', (db) =>
+    db.site_assets.findMany({ where: { site_id: tenant.siteId }, select: { id: true, public_url: true } }),
+  )
+  const assets = Object.fromEntries(assetRows.map((a) => [`asset_${a.id.replace(/-/g, '')}`, a.public_url]))
+
+  return { kind: 'ok', site: { tenant, spec: result.spec, business, assets } }
 })

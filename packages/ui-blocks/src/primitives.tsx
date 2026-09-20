@@ -1,5 +1,14 @@
-import type { ReactNode } from 'react'
+'use client'
+import { createContext, useContext, type ReactNode } from 'react'
 import type { SectionSpec } from '@awning/spec'
+
+/**
+ * assetId -> public URL, resolved once when the spec is loaded.
+ *
+ * A context rather than prop-drilling through every section, and a map rather than a
+ * lookup per image: one query at load beats one round trip per photo on a page.
+ */
+export const AssetContext = createContext<Record<string, string>>({})
 
 /**
  * Shared building blocks. Every component is assembled from these, which is what keeps
@@ -144,9 +153,11 @@ export function Image({
   priority?: boolean
   sizes?: string
 }) {
-  const src = image.assetId.startsWith('stock:')
-    ? `/_asset/stock/${image.assetId.slice(6)}`
-    : `/_asset/${image.assetId}`
+  const assets = useContext(AssetContext)
+  const src = assets[image.assetId]
+  // An asset that has been deleted, or a stock id with no pool entry, renders nothing
+  // rather than a broken-image icon on a customer's live site.
+  if (!src) return null
   const position =
     image.focal === 'top'
       ? 'object-top'

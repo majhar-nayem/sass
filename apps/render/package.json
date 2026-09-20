@@ -16,7 +16,8 @@
     "@awning/ui-blocks": "workspace:*",
     "next": "^15",
     "react": "^19",
-    "react-dom": "^19"
+    "react-dom": "^19",
+    "@awning/integrations": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

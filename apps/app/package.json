@@ -19,7 +19,8 @@
     "react": "^19",
     "react-dom": "^19",
     "superjson": "^2.2.1",
-    "@awning/tenancy": "workspace:*"
+    "@awning/tenancy": "workspace:*",
+    "@awning/integrations": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

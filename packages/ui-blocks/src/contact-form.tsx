@@ -3,7 +3,11 @@ import { useState } from 'react'
 import type { SectionSpec } from '@awning/spec'
 import { Heading, Lede } from './primitives.js'
 
-type Props = Extract<SectionSpec, { type: 'contactForm' }>['props'] & { headingId?: string }
+type Props = Extract<SectionSpec, { type: 'contactForm' }>['props'] & {
+  headingId?: string
+  siteId?: string
+  formKey?: string
+}
 
 /**
  * The single most valuable component in the catalogue: an enquiry in the owner's inbox
@@ -20,6 +24,8 @@ export function ContactForm({
   successMessage,
   fields,
   headingId,
+  siteId,
+  formKey = 'contact',
 }: Props) {
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -31,13 +37,17 @@ export function ContactForm({
     setError(null)
     try {
       const res = await fetch(form.action, { method: 'POST', body: new FormData(form) })
-      if (!res.ok) throw new Error(String(res.status))
+      if (!res.ok) {
+        // 429 carries a message worth showing verbatim; anything else is ours to own.
+        const body = (await res.json().catch(() => null)) as { message?: string } | null
+        throw new Error(body?.message ?? String(res.status))
+      }
       setState('sent')
       form.reset()
     } catch {
       setState('error')
       // Never lose what they typed: the form stays filled and they can retry.
-      setError("That didn't send. Please try again, or give us a call.")
+      setError(e instanceof Error && e.message.length < 120 ? e.message : "That didn't send. Please try again, or give us a call.")
     }
   }
 
@@ -57,7 +67,13 @@ export function ContactForm({
       {heading && <Heading id={headingId}>{heading}</Heading>}
       {subheading && <Lede>{subheading}</Lede>}
 
-      <form onSubmit={onSubmit} action="" method="post" className="mt-6 grid gap-4" noValidate>
+      <form
+        onSubmit={onSubmit}
+        action={siteId ? `/api/f/${siteId}/${formKey}` : ''}
+        method="post"
+        className="mt-6 grid gap-4"
+        noValidate
+      >
         {/* Bots fill every field they find; people never see this one. */}
         <div className="absolute left-[-9999px]" aria-hidden="true">
           <label htmlFor="company_website">Leave this blank</label>

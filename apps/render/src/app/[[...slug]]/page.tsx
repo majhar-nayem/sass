@@ -76,7 +76,14 @@ export default async function TenantPage({ params }: { params: Promise<{ slug?: 
       const page = result.site.spec.pages.find((p) => p.path === pathFrom(slug))
       if (!page) return notFound()
       return (
-        <SpecRenderer spec={result.site.spec} page={page} business={result.site.business} />
+        <SpecRenderer
+          spec={result.site.spec}
+          page={page}
+          business={result.site.business}
+          host={host}
+          siteId={result.site.tenant.siteId}
+          assets={result.site.assets}
+        />
       )
     }
   }

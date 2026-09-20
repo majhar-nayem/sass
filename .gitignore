@@ -12,3 +12,4 @@ coverage/
 # generated file, and a PR that changes the model-facing schema should show that change.
 next-env.d.ts
 .evals/
+.storage/

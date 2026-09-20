@@ -39,6 +39,7 @@ export default async function Preview({
         socials: true,
         opening_hours: true,
         organizations: { select: { abn: true } },
+        site_assets: { select: { id: true, public_url: true } },
         site_versions_sites_draft_version_idTosite_versions: { select: { spec_json: true } },
       },
     }),
@@ -79,5 +80,9 @@ export default async function Preview({
   }
 
   const page = spec.pages.find((p) => p.path === (pagePath ?? '/')) ?? spec.pages[0]!
-  return <SpecRenderer spec={spec} page={page} business={business} />
+  // No host prop: structured data for a draft would advertise an unpublished site.
+  const assets = Object.fromEntries(
+    site.site_assets.map((a) => [`asset_${a.id.replace(/-/g, '')}`, a.public_url]),
+  )
+  return <SpecRenderer spec={spec} page={page} business={business} siteId={siteId} assets={assets} />
 }

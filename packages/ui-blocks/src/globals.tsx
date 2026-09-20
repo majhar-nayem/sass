@@ -264,11 +264,37 @@ function formatAbn(abn: string): string {
  * the highest-converting element on the page: the visitor is outdoors, one-handed, and
  * wants to talk to someone rather than read.
  */
-export function StickyCallBar({ label, phone }: { label?: string; phone: string }) {
+/**
+ * P-10 -- fire-and-forget click beacon.
+ *
+ * sendBeacon, so the request survives the page being replaced by the dialler, and a
+ * silent no-op on failure: a tracking hiccup must never interrupt someone trying to
+ * phone a plumber. No cookie and no identifier — a daily counter, which also means no
+ * consent banner.
+ */
+function track(siteId: string | undefined, event: 'call' | 'whatsapp' | 'email'): void {
+  if (!siteId) return
+  try {
+    navigator.sendBeacon?.(`/api/t/${siteId}?e=${event}`)
+  } catch {
+    /* a failed beacon is not worth a broken tap */
+  }
+}
+
+export function StickyCallBar({
+  label,
+  phone,
+  siteId,
+}: {
+  label?: string
+  phone: string
+  siteId?: string
+}) {
   return (
     <>
       <a
         href={telHref(phone)}
+        onClick={() => track(siteId, 'call')}
         className="fixed inset-x-0 bottom-0 z-50 flex min-h-14 items-center justify-center gap-2 bg-brand-accent font-semibold text-brand-on-accent no-underline md:hidden"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
@@ -280,10 +306,19 @@ export function StickyCallBar({ label, phone }: { label?: string; phone: string 
   )
 }
 
-export function WhatsAppBubble({ number, prefill }: { number: string; prefill?: string }) {
+export function WhatsAppBubble({
+  number,
+  prefill,
+  siteId,
+}: {
+  number: string
+  prefill?: string
+  siteId?: string
+}) {
   return (
     <a
       href={whatsappHref(number, prefill)}
+      onClick={() => track(siteId, 'whatsapp')}
       rel="noopener"
       className="fixed right-4 bottom-20 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg md:bottom-6"
     >

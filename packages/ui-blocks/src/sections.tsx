@@ -339,7 +339,12 @@ export function Cta({ variant, props }: Of<'cta'>, id?: string) {
  * renderer will meet a spec containing a component it does not know; omitting one
  * section is survivable, 500-ing every request for that tenant is not.
  */
-export function renderSection(section: SectionSpec, business: BusinessFacts, headingId?: string) {
+export function renderSection(
+  section: SectionSpec,
+  business: BusinessFacts,
+  headingId?: string,
+  siteId?: string,
+) {
   switch (section.type) {
     case 'hero':
       return <Hero {...section} />
@@ -354,7 +359,7 @@ export function renderSection(section: SectionSpec, business: BusinessFacts, hea
     case 'contact':
       return Contact(section, headingId, business)
     case 'contactForm':
-      return <ContactForm {...section.props} headingId={headingId} />
+      return <ContactForm {...section.props} headingId={headingId} siteId={siteId} formKey={section.id} />
     case 'cta':
       return Cta(section, headingId)
     default:

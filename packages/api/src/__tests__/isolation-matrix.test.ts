@@ -54,6 +54,8 @@ const COVERAGE: Record<string, Strategy> = {
   'site.unpublish': { kind: 'isolated', input: (b) => ({ siteId: b.siteId }), mutates: true },
 
   'lead.list': { kind: 'isolated', input: (b) => ({ siteId: b.siteId }) },
+  'lead.exportCsv': { kind: 'isolated', input: (b) => ({ siteId: b.siteId }), mutates: false },
+  'lead.unreadCount': { kind: 'isolated', input: (b) => ({ siteId: b.siteId }) },
   'lead.markRead': { kind: 'isolated', input: (b) => ({ leadId: b.leadId }), mutates: true },
   'lead.archive': { kind: 'isolated', input: (b) => ({ leadId: b.leadId }), mutates: true },
 
@@ -246,6 +248,8 @@ describe('cross-tenant reads', () => {
         if (blob.includes(secret)) leaked.push(`${path} returned B's ${secret}`)
       }
       if (blob.includes('secret lead for b')) leaked.push(`${path} returned B's lead payload`)
+      // exportCsv returns a flat string rather than rows, so it needs its own look.
+      if (blob.includes('lead-b@example.test')) leaked.push(`${path} exported B's lead`)
     }
 
     expect(leaked, `Cross-tenant leak:\n  ${leaked.join('\n  ')}`).toEqual([])
