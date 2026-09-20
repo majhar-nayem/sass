@@ -15,45 +15,50 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 
 ---
 
-## Progress — 8 September 2026
+## Progress — 20 September 2026
 
-**Week-2 exit gate met.** A published spec renders on a tenant hostname in ~27 ms warm,
-`next build` succeeds, and the isolation suite passes. 113 tests.
+**Weeks 1–2 complete, a week early.** Sign up → create an org → the site and its
+subdomain exist → publish → it renders on the tenant hostname. Verified over real HTTP.
+**121 tests**, lint clean, both apps build.
 
 ```bash
 pnpm install && pnpm db:up && pnpm db:migrate && pnpm --filter @awning/db seed:demo
-pnpm verify                                    # 113 tests, typecheck + lint clean
-pnpm --filter @awning/render dev                # then:
+pnpm verify
+pnpm --filter @awning/app dev      # :3000 dashboard
+pnpm --filter @awning/render dev   # :3001 tenant sites
 curl -H "Host: daves-plumbing.awningsites.localhost" localhost:3001
 ```
 
 | | Ticket | State |
 |---|---|---|
-| F-01 | Monorepo, Turbo, TS, eslint boundaries | **done** — both architectural lint rules verified to fire |
-| F-02 | Docker Compose: Postgres, Redis, Mailpit | **done** |
-| F-03 | Migrations + seed | **done** — 31 tables on a clean DB, 3 plans |
-| F-04 | RLS + `withOrgContext` | **done** — 10 tests, mutation-checked |
-| F-05 | GitHub Actions CI | **done** — not yet exercised on a real runner |
-| S-01 | `packages/spec`, 7 components, `validateSpec` | **done** — 32 tests |
-| S-02 | Generators: Zod → JSON Schema → catalogue | **done** — 642-token cached catalogue |
-| S-03 | `migrateSpec` + version-too-new guard | **done** |
-| R-01 | Renderer, `resolveTenant`, Redis cache | **done** — 71 tenancy tests against real PG + Redis |
-| R-02 | Subdomain allocation, reserved blocklist | **done** |
-| C-01…C-03 | Primitives, theming, `SectionBoundary` | **partial** — hero/services/cta render; 7 more components in C-04 |
-| F-06 | Fly ×3 + Neon + Upstash | **deferred** — running on local Postgres and Redis, which is equivalent for everything except deploy |
-| F-07…F-11 | Auth, org, tRPC, isolation matrix, Sentry | **next** |
+| F-01…F-05 | Monorepo, Docker, migrations, RLS, CI | **done** |
+| F-07 | Better Auth on the existing users table | **done** — signup works over HTTP |
+| F-08 | Org, membership, `orgProcedure` | **done** |
+| F-09 | Dashboard shell | **done** — placeholder UI until P-01 |
+| **F-10** | **Isolation matrix generated from the router** | **done** — mutation-proven |
+| S-01…S-03 | Spec package, generators, migrations | **done** |
+| R-01, R-02 | Renderer, tenant resolution, subdomains | **done** |
+| C-01…C-03 | Primitives, theming, `SectionBoundary` | **partial** — hero/services/cta |
+| F-06 | Fly ×3 + Neon + Upstash | **deferred** — local Postgres/Redis, equivalent except deploy |
+| F-11 | Sentry | **not started** — needs a DSN |
+| **C-04** | **The remaining 7 components** | **next** — this is the contractor's parcel |
 
-### Two corrections found by building
+### Test counts by package
+`@awning/tenancy` 71 · `@awning/spec` 32 · `@awning/db` 10 · `@awning/api` 8
+
+### Corrections found by building
 
 **The versioned cache key in `02-ARCHITECTURE.md` §7 cannot work as written.** The epoch
 lives in Postgres and Prisma cannot run on Next's edge runtime, so middleware has no way
-to learn it before the cache decision is taken. MVP is short `s-maxage` plus purge-by-URL;
-the Worker + KV version is documented as the upgrade. `sites.cache_epoch` already exists,
-so the schema does not change when you get there.
+to learn it before the cache decision is taken. MVP is short `s-maxage` plus purge-by-URL.
 
-**Every "no site here" state must return 404, not 200.** First implementation rendered a
-placeholder with a 200, which would have let Google index thin pages across the whole
-wildcard domain and hidden real outages from uptime monitoring. Suspended sites 404 too.
+**Every "no site here" state must return 404, not 200.** A placeholder with a 200 would
+let Google index thin pages across the whole wildcard domain and hide outages from uptime
+monitoring. Suspended sites 404 too.
+
+**Better Auth's default id format breaks our schema.** Short random ids against a uuid
+column fail on the first insert. Fixed with `generateId`, caught only because signup was
+exercised over HTTP rather than assumed to work.
 
 ## 0. How to read a ticket
 
