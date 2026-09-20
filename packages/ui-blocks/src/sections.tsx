@@ -43,7 +43,7 @@ export function Hero({ variant, props }: Of<'hero'>) {
       >
         <div className={centred ? 'mx-auto max-w-[44ch] text-center' : ''}>
           {props.eyebrow && (
-            <p className="mb-3 text-[0.78rem] font-bold tracking-[0.12em] text-brand-accent uppercase">
+            <p className="mb-3 text-[0.78rem] font-bold tracking-[0.12em] text-[var(--brand-accent-text)] uppercase">
               {props.eyebrow}
             </p>
           )}
@@ -65,7 +65,7 @@ export function Hero({ variant, props }: Of<'hero'>) {
             >
               {props.trustPoints.map((t) => (
                 <li key={t} className="flex items-center gap-1.5">
-                  <span aria-hidden="true" className="text-brand-accent">
+                  <span aria-hidden="true" className="text-[var(--brand-accent-text)]">
                     &#10003;
                   </span>
                   {t}
@@ -110,7 +110,7 @@ export function Services({ variant, props }: Of<'services'>, id?: string) {
             }
           >
             {numbered && (
-              <span className="mb-2 block font-heading text-2xl font-bold text-brand-accent">
+              <span className="mb-2 block font-heading text-2xl font-bold text-[var(--brand-accent-text-surface)]">
                 {String(i + 1).padStart(2, '0')}
               </span>
             )}
@@ -119,7 +119,7 @@ export function Services({ variant, props }: Of<'services'>, id?: string) {
               <p className="mt-1.5 text-[0.95rem] leading-relaxed opacity-80">{item.description}</p>
             )}
             {item.priceFrom && (
-              <p className="mt-3 font-semibold text-brand-accent">
+              <p className="mt-3 font-semibold text-[var(--brand-accent-text-surface)]">
                 {item.priceFrom}
                 <span className="ml-1 text-xs font-normal opacity-60">incl. GST</span>
               </p>
@@ -197,7 +197,7 @@ export function Testimonials({ variant, props }: Of<'testimonials'>, id?: string
             }
           >
             {typeof t.rating === 'number' && (
-              <p className="mb-2 text-brand-accent">
+              <p className="mb-2 text-[var(--brand-accent-text-surface)]">
                 {/* aria-label is prohibited on a <p> — ARIA only allows it on elements
                     with a role that supports naming. Screen readers get real text. */}
                 <span className="sr-only">{t.rating} out of 5 stars.</span>

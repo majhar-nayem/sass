@@ -73,7 +73,7 @@ export function ContactForm({
               <label htmlFor={id} className="text-sm font-semibold">
                 {f.label}
                 {f.required && (
-                  <span className="ml-1 text-brand-accent" aria-hidden="true">
+                  <span className="ml-1 text-[var(--brand-accent-text)]" aria-hidden="true">
                     *
                   </span>
                 )}
@@ -126,7 +126,7 @@ export function ContactForm({
         })}
 
         {error && (
-          <p role="alert" className="text-sm font-semibold text-brand-accent">
+          <p role="alert" className="text-sm font-semibold text-[var(--brand-accent-text)]">
             {error}
           </p>
         )}

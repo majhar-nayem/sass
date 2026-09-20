@@ -1,4 +1,5 @@
 import { WebsiteSpecification, type WebsiteSpec } from './spec.js'
+import { AA_BODY, AA_LARGE, contrastRatio } from './contrast.js'
 
 export interface SpecError {
   path: string
@@ -29,6 +30,11 @@ const BANNED: Array<[RegExp, string]> = [
 
 const PLACEHOLDER = /(lorem ipsum|your business (name )?here|\[insert|xxx+|tbd)/i
 
+export interface PlanLimits {
+  maxPages: number
+  ecommerce: boolean
+}
+
 export interface ValidationCtx {
   /** Facts the owner actually entered. A banned phrase backed by one of these is fine. */
   verifiedFacts?: {
@@ -38,6 +44,8 @@ export interface ValidationCtx {
     certifications?: string[]
   }
   now?: Date
+  /** Plan ceilings. A spec that exceeds them would render a site the owner cannot keep. */
+  planLimits?: PlanLimits
 }
 
 function walkStrings(v: unknown, path: string, out: Array<[string, string]>): void {
@@ -115,6 +123,43 @@ export function validateSpec(input: unknown, ctx: ValidationCtx = {}): Validatio
 
   if (!spec.pages.some((p) => p.path === '/'))
     errors.push({ path: '/pages', stage: 'semantic', message: 'No home page at "/".' })
+
+  // --- contrast ----------------------------------------------------------------
+  // Checked against the pairings the renderer ACTUALLY uses. An earlier version asked
+  // whether autoContrast could find a legible foreground for each brand colour, which
+  // can never fail (the worst case across the whole colour space is 4.58:1) and so
+  // caught nothing. These pairings genuinely can fail.
+  const t = spec.theme
+  const surface = t.surface ?? t.secondary
+  const pairings: Array<[string, string, string, number, string]> = [
+    ['/theme/neutral', t.neutral, surface, AA_BODY, 'body text on the page surface'],
+    ['/theme/neutral', t.neutral, '#ffffff', AA_BODY, 'body text on a white section'],
+    ['/theme/primary', t.primary, surface, AA_LARGE, 'headings on the page surface'],
+  ]
+  for (const [path, fg, bg, target, what] of pairings) {
+    const ratio = contrastRatio(fg, bg)
+    if (ratio < target)
+      errors.push({
+        path,
+        stage: 'a11y',
+        message: `${fg} on ${bg} is ${ratio.toFixed(2)}:1 for ${what}, below the ${target}:1 minimum. Darken it.`,
+      })
+  }
+  // A brand whose primary and accent are nearly the same reads as a mistake.
+  if (contrastRatio(t.primary, t.accent) < 1.4)
+    errors.push({
+      path: '/theme/accent',
+      stage: 'a11y',
+      message: 'The accent is almost identical to the primary colour, so buttons will not stand out.',
+    })
+
+  // --- plan limits -------------------------------------------------------------
+  if (ctx.planLimits && spec.pages.length > ctx.planLimits.maxPages)
+    errors.push({
+      path: '/pages',
+      stage: 'semantic',
+      message: `This plan allows ${ctx.planLimits.maxPages} pages; the specification has ${spec.pages.length}.`,
+    })
 
   return errors.length ? { ok: false, errors } : { ok: true, spec }
 }

@@ -45,13 +45,6 @@ export default tseslint.config(
     },
   },
 
-  // Test fixtures deliberately construct malformed specs. `any` is the point of them:
-  // the whole suite exists to prove the validator rejects things the types forbid.
-  {
-    files: ['**/__tests__/**/*.ts', '**/*.test.ts', 'tests/**/*.{ts,mjs}'],
-    rules: { '@typescript-eslint/no-explicit-any': 'off' },
-  },
-
   // App code gets a DB client through withOrgContext, never from a bare client.
   // That helper is the only place row-level security context is set.
   {
@@ -70,6 +63,18 @@ export default tseslint.config(
           ],
         },
       ],
+    },
+  },
+
+  // Test fixtures deliberately construct malformed specs. `any` is the point of them:
+  // the whole suite exists to prove the validator rejects things the types forbid.
+  {
+    files: ['**/__tests__/**/*.ts', '**/*.test.ts', 'tests/**/*.{ts,mjs}'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      // Tests seed fixtures for two orgs and then assert one cannot see the other's
+      // rows. That setup has to happen outside org context by definition.
+      'no-restricted-imports': 'off',
     },
   },
 )
