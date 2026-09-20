@@ -17,48 +17,50 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 
 ## Progress — 20 September 2026
 
-**Weeks 1–2 complete, a week early.** Sign up → create an org → the site and its
-subdomain exist → publish → it renders on the tenant hostname. Verified over real HTTP.
-**121 tests**, lint clean, both apps build.
+**Weeks 1–3 complete.** Sign up → create an org → publish → it renders on the tenant
+hostname, responsive and accessible. **169 tests**, lint clean, both apps build.
+Remote: `github.com/majhar-nayem/sass`.
 
 ```bash
 pnpm install && pnpm db:up && pnpm db:migrate && pnpm --filter @awning/db seed:demo
 pnpm verify
 pnpm --filter @awning/app dev      # :3000 dashboard
 pnpm --filter @awning/render dev   # :3001 tenant sites
-curl -H "Host: daves-plumbing.awningsites.localhost" localhost:3001
+open http://daves-plumbing.awningsites.localhost:3001
 ```
 
 | | Ticket | State |
 |---|---|---|
 | F-01…F-05 | Monorepo, Docker, migrations, RLS, CI | **done** |
-| F-07 | Better Auth on the existing users table | **done** — signup works over HTTP |
-| F-08 | Org, membership, `orgProcedure` | **done** |
-| F-09 | Dashboard shell | **done** — placeholder UI until P-01 |
+| F-07…F-09 | Better Auth, orgs, `orgProcedure`, dashboard shell | **done** |
 | **F-10** | **Isolation matrix generated from the router** | **done** — mutation-proven |
-| S-01…S-03 | Spec package, generators, migrations | **done** |
+| S-01…S-03 | Spec package, generators, spec migrations | **done** |
 | R-01, R-02 | Renderer, tenant resolution, subdomains | **done** |
-| C-01…C-03 | Primitives, theming, `SectionBoundary` | **partial** — hero/services/cta |
-| F-06 | Fly ×3 + Neon + Upstash | **deferred** — local Postgres/Redis, equivalent except deploy |
+| **C-01…C-04** | **10 components / 33 variants + globals, on Tailwind** | **done** |
+| **C-05** | **axe gate, every component × every variant** | **done** — 48 tests |
+| C-06 | Stock image pool | **not started** |
+| F-06 | Fly ×3 + Neon + Upstash | **deferred** — local Postgres/Redis |
 | F-11 | Sentry | **not started** — needs a DSN |
-| **C-04** | **The remaining 7 components** | **next** — this is the contractor's parcel |
+| **A-01…A-07** | **AI generation, validation pipeline, eval harness, circuit breaker** | **next** |
 
-### Test counts by package
-`@awning/tenancy` 71 · `@awning/spec` 32 · `@awning/db` 10 · `@awning/api` 8
+### Test counts
+`@awning/tenancy` 71 · `@awning/ui-blocks` 48 · `@awning/spec` 32 · `@awning/db` 10 · `@awning/api` 8
 
-### Corrections found by building
+### Defects found by building, not by review
 
-**The versioned cache key in `02-ARCHITECTURE.md` §7 cannot work as written.** The epoch
-lives in Postgres and Prisma cannot run on Next's edge runtime, so middleware has no way
-to learn it before the cache decision is taken. MVP is short `s-maxage` plus purge-by-URL.
+**The versioned cache key in `02-ARCHITECTURE.md` §7 cannot work as written.** Prisma
+cannot run on Next's edge runtime, so middleware cannot learn the epoch before the cache
+decision. MVP is short `s-maxage` plus purge-by-URL.
 
-**Every "no site here" state must return 404, not 200.** A placeholder with a 200 would
-let Google index thin pages across the whole wildcard domain and hide outages from uptime
-monitoring. Suspended sites 404 too.
+**Every "no site here" state must return 404, not 200**, or Google indexes thin pages
+across the whole wildcard domain and uptime monitoring cannot see outages.
 
-**Better Auth's default id format breaks our schema.** Short random ids against a uuid
-column fail on the first insert. Fixed with `generateId`, caught only because signup was
-exercised over HTTP rather than assumed to work.
+**Better Auth's default id format breaks a uuid primary key.** Caught only because signup
+was exercised over HTTP rather than assumed.
+
+**`autoContrast` used a luminance threshold of 0.45 when the crossover is 0.179**, so
+every mid-tone brand colour got white text — the demo's own buttons were 3.45:1 and
+failed AA. See `05-COMPONENTS.md` §7.
 
 ## 0. How to read a ticket
 
