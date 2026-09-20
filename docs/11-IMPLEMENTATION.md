@@ -91,12 +91,23 @@ Upstash's connection limits or Fly's health-gated rolling deploy has been exerci
 
 ### Three defects found by deploying, not by reviewing
 
-**CI has never run a single test.** Every push since the first has failed at step two:
+**CI had never run a single test.** Every push since the first failed at step two:
 `pnpm/action-setup` was given `version: 9` while package.json declares
 `packageManager: pnpm@9.15.9`, and the action refuses to install when both are set. I
-had been reporting green local runs without checking the actual runs. So the
-generated-artefact drift gate, the isolation matrix and everything else have been
-decorative in CI since the beginning.
+had been reporting green local runs without checking the actual runs, so the
+generated-artefact gate, the isolation matrix and everything else were decorative in CI
+from the beginning. Four more faults were hiding behind it, each only reachable once the
+one in front was fixed:
+
+- the Prisma client was never generated, so every model typed as `{}` and the build failed
+- `psql` rejects Prisma's `?schema=` parameter, so the app role never got a password
+- **Turbo 2 runs tasks in strict env mode**, so the database URLs were stripped before
+  the tests saw them — invisible locally, where the test setup reads `.env` off disk
+- there was no Redis service, so four tenant-cache tests failed
+
+**CI is now green** (run 35496544572): migrations, 455 tests, the drift gate, the stock
+manifest check, and both Docker images. Reproduce it locally by moving `.env` aside and
+passing the variables through the environment — that is what hid three of the five.
 
 **The request path would have connected as the database owner in production.**
 `APP_DATABASE_URL` fell back to `DATABASE_URL`, Postgres exempts a table owner from RLS,
