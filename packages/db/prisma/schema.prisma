@@ -662,6 +662,7 @@ model users {
   auth_sessions_auth_sessions_impersonated_byTousers auth_sessions[]    @relation("auth_sessions_impersonated_byTousers")
   auth_sessions_auth_sessions_user_idTousers         auth_sessions[]    @relation("auth_sessions_user_idTousers")
   memberships                                        memberships[]
+  onboarding_drafts                                  onboarding_drafts?
   site_assets                                        site_assets[]
   site_versions                                      site_versions[]
 }
@@ -687,6 +688,17 @@ model auth_verifications {
 
   @@index([expires_at], map: "auth_verifications_expires_idx")
   @@index([identifier])
+}
+
+model onboarding_drafts {
+  user_id      String    @id @db.Uuid
+  answers      Json      @default("{}")
+  step         Int       @default(0) @db.SmallInt
+  resume_token String    @unique(map: "onboarding_drafts_resume_token") @default(dbgenerated("encode(gen_random_bytes(18), 'hex'::text)"))
+  completed_at DateTime? @db.Timestamptz(6)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  users        users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 enum ai_action_type {

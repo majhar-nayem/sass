@@ -1,0 +1,31 @@
+@import 'tailwindcss';
+
+/* The dashboard is a tool, not a tenant site: one fixed palette, no per-tenant theming.
+   Kept deliberately quiet so the preview beside it is what draws the eye. */
+@theme {
+  --color-ink: #1b2a33;
+  --color-paper: #fafaf7;
+  --color-surface: #f1f2ee;
+  --color-rule: #d8dad4;
+  --color-brand: #b8431f;
+  --color-muted: #66757c;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  margin: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

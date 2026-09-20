@@ -124,6 +124,17 @@ export function validateSpec(input: unknown, ctx: ValidationCtx = {}): Validatio
   if (!spec.pages.some((p) => p.path === '/'))
     errors.push({ path: '/pages', stage: 'semantic', message: 'No home page at "/".' })
 
+  // Paths the renderer owns. A tenant page here would be shadowed by our own route and
+  // simply never appear, which is a baffling bug to debug from the owner's side.
+  const RESERVED_PATHS = ['/preview', '/api', '/_next', '/sitemap.xml', '/robots.txt']
+  for (const page of spec.pages)
+    if (RESERVED_PATHS.some((r) => page.path === r || page.path.startsWith(`${r}/`)))
+      errors.push({
+        path: `/pages/${page.id}`,
+        stage: 'semantic',
+        message: `"${page.path}" is reserved by the platform. Choose a different address.`,
+      })
+
   // --- contrast ----------------------------------------------------------------
   // Checked against the pairings the renderer ACTUALLY uses. An earlier version asked
   // whether autoContrast could find a legible foreground for each brand colour, which

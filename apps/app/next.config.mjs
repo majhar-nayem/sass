@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 export default {
   reactStrictMode: true,
-  transpilePackages: ['@awning/api', '@awning/auth', '@awning/db', '@awning/spec', '@awning/tenancy'],
+  transpilePackages: ['@awning/api', '@awning/auth', '@awning/db', '@awning/spec', '@awning/tenancy', '@awning/ai'],
   poweredByHeader: false,
   serverExternalPackages: ['@prisma/client', 'ioredis', 'better-auth'],
   eslint: { ignoreDuringBuilds: true }, // eslint.config.js at the root is authoritative

@@ -14,7 +14,10 @@ export default async function Dashboard() {
   // orgProcedure checks. There is no privileged back door for our own UI.
   const caller = createCaller({ userId: user.id, isPlatformAdmin: user.is_platform_admin })
   const membership = await caller.org.current()
-  const sites = membership ? await caller.site.list() : []
+  // No business yet means they never finished onboarding; that is the only useful
+  // thing this page can offer them.
+  if (!membership) redirect('/onboarding')
+  const sites = await caller.site.list()
 
   return (
     <main style={{ maxWidth: 760, margin: '6vh auto', padding: '0 24px' }}>
@@ -25,11 +28,7 @@ export default async function Dashboard() {
         </p>
       </header>
 
-      {!membership ? (
-        <p style={{ marginTop: '2rem', lineHeight: 1.6 }}>
-          No business set up yet. The onboarding wizard (P-01) lands in week 3.
-        </p>
-      ) : (
+      {(
         <ul style={{ listStyle: 'none', padding: 0, marginTop: '1.6rem' }}>
           {sites.map((s) => (
             <li
@@ -46,6 +45,7 @@ export default async function Dashboard() {
               <div style={{ fontSize: '.85rem', opacity: 0.7, marginTop: '.25rem' }}>
                 {s.slug}.awningsites.localhost · {s.status}
               </div>
+              <a href={`/editor/${s.id}`} style={{ fontSize: '.9rem' }}>Open editor</a>
             </li>
           ))}
         </ul>

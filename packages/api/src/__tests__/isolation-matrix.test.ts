@@ -93,6 +93,14 @@ const COVERAGE: Record<string, Strategy> = {
     input: (b) => ({ siteId: b.siteId, pageId: 'home', sectionIds: ['hero-main'] }),
     mutates: true,
   },
+  // Onboarding runs BEFORE an org exists, so there is no org to scope by. That makes
+  // them 'authed' on this axis — but drafts hold a business name, description and phone
+  // number keyed by user, so user-level isolation is checked separately below rather
+  // than waved through.
+  'onboarding.draft': { kind: 'authed' },
+  'onboarding.saveDraft': { kind: 'authed' },
+  'onboarding.complete': { kind: 'authed' },
+
   'ai.replaceImage': {
     kind: 'isolated',
     input: (b) => ({ siteId: b.siteId, sectionId: 'hero-main', path: 'image', assetId: 'asset_pwned123' }),
@@ -276,6 +284,48 @@ describe('cross-tenant writes', () => {
     const lead = await rawPrisma.form_submissions.findUnique({ where: { id: B.ids.leadId } })
     expect(lead?.read_at).toBeNull()
     expect(lead?.archived_at).toBeNull()
+  })
+})
+
+/**
+ * Onboarding drafts are keyed by user, not by org, so org RLS does not cover them. A
+ * draft holds the business name, what they do and their phone number before any of it
+ * is public — worth its own check rather than a classification.
+ */
+describe('onboarding drafts are per user', () => {
+  it('one user cannot read another’s draft', async () => {
+    await invoke(A.userId, 'onboarding.saveDraft', {
+      answers: { businessName: 'A Secret Trading Co', description: 'confidential' },
+      step: 1,
+    })
+    const bDraft = (await invoke(B.userId, 'onboarding.draft', undefined)) as {
+      answers: Record<string, unknown>
+    }
+    expect(JSON.stringify(bDraft.answers)).not.toContain('A Secret Trading Co')
+    expect(bDraft.answers).toEqual({})
+  })
+
+  it('a user reads back their own draft', async () => {
+    await invoke(A.userId, 'onboarding.saveDraft', {
+      answers: { businessName: 'A Trading Co', description: 'x' },
+      step: 2,
+    })
+    const mine = (await invoke(A.userId, 'onboarding.draft', undefined)) as {
+      answers: { businessName?: string }
+      step: number
+    }
+    expect(mine.answers.businessName).toBe('A Trading Co')
+    expect(mine.step).toBe(2)
+  })
+
+  it('refuses a second business for a user who already has one', async () => {
+    expect(
+      await codeOf(
+        invoke(A.userId, 'onboarding.complete', {
+          answers: { businessName: 'Second Co', description: 'another one' },
+        }),
+      ),
+    ).toBe('CONFLICT')
   })
 })
 

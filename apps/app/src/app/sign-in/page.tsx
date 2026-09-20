@@ -1,13 +1,14 @@
 export const dynamic = 'force-dynamic'
 
-/** Placeholder until the real onboarding lands in P-01 (week 3). */
+/** Placeholder until the real sign-in form lands with P-12; the API behind it is live. */
 export default function SignIn() {
   return (
-    <main style={{ maxWidth: 380, margin: '15vh auto', padding: '0 24px' }}>
-      <h1 style={{ fontSize: '1.5rem', marginBottom: '.4rem' }}>Sign in to Awning</h1>
-      <p style={{ opacity: 0.7, lineHeight: 1.6, marginTop: 0 }}>
-        Email and password sign-in is live at <code>/api/auth</code>. The onboarding flow
-        (P-01) replaces this page in week 3.
+    <main className="mx-auto max-w-sm px-5 py-[15vh]">
+      <h1 className="text-2xl font-semibold">Sign in to Awning</h1>
+      <p className="mt-2 leading-relaxed text-muted">
+        Email and password sign-in is live at <code>/api/auth</code>. Once you&rsquo;re
+        signed in you&rsquo;ll land on the seven-question setup, and your website is built
+        from your answers.
       </p>
     </main>
   )
