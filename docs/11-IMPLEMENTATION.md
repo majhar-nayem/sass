@@ -17,9 +17,9 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 
 ## Progress — 20 September 2026
 
-**Weeks 1–3 complete.** Sign up → create an org → publish → it renders on the tenant
-hostname, responsive and accessible. **169 tests**, lint clean, both apps build.
-Remote: `github.com/majhar-nayem/sass`.
+**Weeks 1–4 of the build complete.** Sign up → describe a business → generate → publish →
+it renders on the tenant hostname, responsive and accessible. **207 tests**, lint clean,
+both apps build. Remote: `github.com/majhar-nayem/sass` (all commits SSH-signed).
 
 ```bash
 pnpm install && pnpm db:up && pnpm db:migrate && pnpm --filter @awning/db seed:demo
@@ -36,31 +36,54 @@ open http://daves-plumbing.awningsites.localhost:3001
 | **F-10** | **Isolation matrix generated from the router** | **done** — mutation-proven |
 | S-01…S-03 | Spec package, generators, spec migrations | **done** |
 | R-01, R-02 | Renderer, tenant resolution, subdomains | **done** |
-| **C-01…C-04** | **10 components / 33 variants + globals, on Tailwind** | **done** |
-| **C-05** | **axe gate, every component × every variant** | **done** — 48 tests |
-| C-06 | Stock image pool | **not started** |
-| F-06 | Fly ×3 + Neon + Upstash | **deferred** — local Postgres/Redis |
-| F-11 | Sentry | **not started** — needs a DSN |
-| **A-01…A-07** | **AI generation, validation pipeline, eval harness, circuit breaker** | **next** |
+| C-01…C-04 | 10 components / 33 variants + globals, Tailwind | **done** |
+| C-05 | axe gate, every component × every variant | **done** — 48 tests |
+| **A-01** | **`runAiAction`: metering before the await, retries** | **done** |
+| **A-02** | **Cached prompt prefix + industry packs** | **done** — stability tested |
+| **A-03** | **Generation via structured outputs** | **written, unexercised** — needs an API key |
+| **A-04** | **Validation pipeline incl. ACL + contrast + plan limits** | **done** |
+| **A-05** | **Retry with the validator's own error text** | **done** |
+| **A-06** | **Eval harness, 30 briefs, 10 of them hostile** | **done offline; needs a key to run live** |
+| **A-07** | **Quota, spend cap, rate limit, circuit breaker** | **done** — 16 tests on real Postgres |
+| C-06 | Stock image pool | not started |
+| F-06 | Fly ×3 + Neon + Upstash | deferred — local Postgres/Redis |
+| F-11 | Sentry | not started — needs a DSN |
+| **A-08…A-11** | **Chat editing: tool calls, router, versioning, undo** | **next** |
 
 ### Test counts
-`@awning/tenancy` 71 · `@awning/ui-blocks` 48 · `@awning/spec` 32 · `@awning/db` 10 · `@awning/api` 8
+`@awning/tenancy` 71 · `@awning/ui-blocks` 48 · `@awning/ai` 38 · `@awning/spec` 32 ·
+`@awning/db` 10 · `@awning/api` 8
+
+### Model choice, corrected against current pricing
+
+| | Model | In / Out per 1M | Why |
+|---|---|---|---|
+| Generation, copy rewrites | `claude-opus-5` | $5 / $25 | Design judgement and copy **are** the product |
+| Edits, SEO, classification | `claude-haiku-4-5` | $1 / $5 | A tool call with one argument buys no judgement |
+
+The docs originally specified Sonnet for generation at $3/$15 — that was last-generation
+pricing. Sonnet 5 is $2/$10, and Opus 5 is $5/$25. At ~A$0.31 a generation against
+A$49/month revenue the difference is about twenty cents a customer, so generation runs on
+Opus. A typical customer costs **under A$2/month** in model calls; there is a test
+asserting it.
 
 ### Defects found by building, not by review
 
-**The versioned cache key in `02-ARCHITECTURE.md` §7 cannot work as written.** Prisma
-cannot run on Next's edge runtime, so middleware cannot learn the epoch before the cache
-decision. MVP is short `s-maxage` plus purge-by-URL.
+**The versioned cache key in `02-ARCHITECTURE.md` §7 cannot work as written** — Prisma
+cannot run on Next's edge runtime.
 
 **Every "no site here" state must return 404, not 200**, or Google indexes thin pages
-across the whole wildcard domain and uptime monitoring cannot see outages.
+across the wildcard domain.
 
-**Better Auth's default id format breaks a uuid primary key.** Caught only because signup
-was exercised over HTTP rather than assumed.
+**Better Auth's default id format breaks a uuid primary key.**
 
-**`autoContrast` used a luminance threshold of 0.45 when the crossover is 0.179**, so
-every mid-tone brand colour got white text — the demo's own buttons were 3.45:1 and
-failed AA. See `05-COMPONENTS.md` §7.
+**`autoContrast` used a luminance threshold of 0.45 when the crossover is 0.179.**
+
+**The contrast validator could never fire.** It asked whether each brand colour had
+*some* legible foreground — always true, worst case 4.58:1. The pairing that genuinely
+fails is the accent used as small text: the demo's eyebrow, price and star text were
+~3.2:1, failing AA, and axe missed it because jsdom cannot compute CSS. Brand accent is
+now for fills, with a text-safe variant derived from it.
 
 ## 0. How to read a ticket
 
