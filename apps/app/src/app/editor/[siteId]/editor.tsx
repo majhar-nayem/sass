@@ -160,6 +160,17 @@ export function Editor({
 
   return (
     <div className="flex h-dvh flex-col">
+      {billing.status === 'past_due' && (
+        /* Shown to the owner only — the public site is untouched. Naming the date is
+           the point: a vague warning is easy to keep ignoring. */
+        <div className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-950">
+          We couldn&rsquo;t take your last payment. Your site is still live —{' '}
+          <a href="/billing" className="font-semibold underline">
+            update your card
+          </a>{' '}
+          to keep it that way.
+        </div>
+      )}
       <header className="flex shrink-0 items-center gap-3 border-b border-rule px-4 py-2.5">
         <span className="truncate font-semibold">{siteName}</span>
         <span

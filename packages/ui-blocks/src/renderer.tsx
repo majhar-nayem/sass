@@ -1,5 +1,6 @@
 import type { BusinessFacts, PageSpec, WebsiteSpec } from '@awning/spec'
-import { AssetContext, Section } from './primitives.js'
+import { Section } from './primitives.js'
+import { AssetProvider } from './asset-provider.js'
 import { renderSection } from './sections.js'
 import { SectionBoundary } from './section-boundary.js'
 import { AnnouncementBar, Footer, Navbar, StickyCallBar, WhatsAppBubble } from './globals.js'
@@ -28,7 +29,7 @@ export function SpecRenderer({
   const visible = page.sections.filter((s) => !s.hidden)
 
   return (
-    <AssetContext.Provider value={assets ?? {}}>
+    <AssetProvider value={assets ?? {}}>
       <style dangerouslySetInnerHTML={{ __html: themeToCss(spec.theme) }} />
       {host && <JsonLd spec={spec} business={business} host={host} />}
 
@@ -67,6 +68,6 @@ export function SpecRenderer({
       {g?.stickyCallBar?.enabled && business.phone && (
         <StickyCallBar label={g.stickyCallBar.label} phone={business.phone} siteId={siteId} />
       )}
-    </AssetContext.Provider>
+    </AssetProvider>
   )
 }

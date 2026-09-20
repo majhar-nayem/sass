@@ -1,6 +1,7 @@
 import type Stripe from 'stripe'
 import { withoutOrgContext } from '@awning/db'
 import { mapSubscriptionStatus } from '@awning/integrations/stripe'
+import { restoreAfterPayment } from './dunning.js'
 
 /**
  * M-01 -- Stripe webhook handling.
@@ -120,7 +121,10 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<WebhookOut
             where: { org_id: existing.org_id },
             data: { status: 'active' },
           })
-          action = 'payment-succeeded'
+          // Paying brings a suspended site straight back and clears the reminder
+          // history, so a second lapse starts the schedule from the beginning.
+          const restored = await restoreAfterPayment(db, existing.org_id)
+          action = restored > 0 ? 'payment-succeeded-restored' : 'payment-succeeded'
           break
         }
 

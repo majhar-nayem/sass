@@ -1,5 +1,7 @@
 export { storage, assetKey, assetIdFor, assetUuidFrom, __setStorage, type Storage, type StoredObject } from './storage.js'
 export { processUpload, sniffFormat, hasExif, UnsupportedImage, type ProcessedImage } from './images.js'
-export { sendMail, enquiryEmail, __setTransport, type Mail } from './mail.js'
+export { sendMail, enquiryEmail, __setTransport, __useCapturingTransport, type Mail } from './mail.js'
 export { verifyTurnstile, scoreSubmission, type SpamCheck } from './turnstile.js'
 export { rateLimit, hashIp, __resetRateLimit, type RateLimit } from './rate-limit.js'
+export { createCustomHostname, getCustomHostname, deleteCustomHostname, purgeUrls, cloudflareConfigured, cnameTarget, type CfHostname } from './cloudflare.js'
+export { stripe, stripeConfigured, createCheckoutSession, createPortalSession, parseWebhook, mapSubscriptionStatus, canPublish, priceIdFor, __setStripe } from './stripe.js'

@@ -45,6 +45,23 @@ export function __setTransport(t: Transporter | null): void {
   transport = t
 }
 
+/**
+ * Swaps in a transport that captures instead of sending.
+ *
+ * Exported from here so a consumer's tests do not need nodemailer as a dependency just
+ * to stub mail, and so nothing in a test run can accidentally reach a real inbox.
+ */
+export function __useCapturingTransport(): { sent: Mail[] } {
+  const sent: Mail[] = []
+  transport = {
+    sendMail: async (m: Record<string, unknown>) => {
+      sent.push(m as unknown as Mail)
+      return { messageId: `captured-${sent.length}` }
+    },
+  } as unknown as Transporter
+  return { sent }
+}
+
 function from(kind: MailKind): string {
   return kind === 'tenant'
     ? (process.env.MAIL_FROM_TENANT ?? 'Awning <notifications@send.awningsites.com>')

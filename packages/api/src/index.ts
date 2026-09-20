@@ -1,3 +1,5 @@
 export { appRouter, type AppRouter } from './root.js'
 export { createCallerFactory, type Context, type OrgContext } from './trpc.js'
 export { handleStripeEvent, type WebhookOutcome } from './billing-webhook.js'
+export { attachDomain, checkDomain, sweepDomains, detachDomain, validateCustomHostname, diagnose, statusFrom, DomainRejected, type DomainStatus } from './domains.js'
+export { runDunning, decideDunning, restoreAfterPayment, GRACE_DAYS, type DunningAction, type DunningState } from './dunning.js'

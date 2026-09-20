@@ -18,8 +18,9 @@ import { createCallerFactory, type Context } from '../trpc.js'
  */
 
 type Strategy =
-  | { kind: 'public' } //  no auth, no tenant data
-  | { kind: 'authed' } //  signed in but not org-scoped (signup)
+  | { kind: 'public' } //   no auth, no tenant data
+  | { kind: 'authed' } //   signed in but not org-scoped (signup)
+  | { kind: 'platform' } // platform staff only; a tenant must get NOT_FOUND
   | { kind: 'isolated'; input: (ids: Ids) => unknown; mutates?: boolean }
 
 interface Ids {
@@ -27,6 +28,7 @@ interface Ids {
   siteId: string
   versionId: string
   leadId: string
+  domainId: string
 }
 
 /**
@@ -73,6 +75,18 @@ const COVERAGE: Record<string, Strategy> = {
   // they fail before any network call.
   'billing.checkout': { kind: 'isolated', input: () => ({ planCode: 'founding' }), mutates: false },
   'billing.portal': { kind: 'isolated', input: () => ({ returnPath: '/' }), mutates: false },
+
+  'domain.list': { kind: 'isolated', input: (b) => ({ siteId: b.siteId }) },
+  // Pointing a business's domain at the wrong site takes their website off the
+  // internet, so attaching to another org's site must fail at the site lookup.
+  'domain.attach': {
+    kind: 'isolated',
+    input: (b) => ({ siteId: b.siteId, hostname: 'hijack-attempt.example.com' }),
+    mutates: true,
+  },
+  'domain.check': { kind: 'isolated', input: (b) => ({ domainId: b.domainId }), mutates: true },
+  'domain.detach': { kind: 'isolated', input: (b) => ({ domainId: b.domainId }), mutates: true },
+  'domain.sweep': { kind: 'platform' },
 
   'ai.quota': { kind: 'isolated', input: () => undefined },
   'ai.chat': {
@@ -179,6 +193,9 @@ async function seedOrg(label: string) {
     },
   })
   await rawPrisma.sites.update({ where: { id: siteId }, data: { draft_version_id: versionId } })
+  const domain = await rawPrisma.site_domains.create({
+    data: { site_id: siteId, hostname: `${slug}.awningsites.test`, kind: 'subdomain', status: 'active', is_primary: true },
+  })
   const lead = await rawPrisma.form_submissions.create({
     data: {
       site_id: siteId,
@@ -188,7 +205,7 @@ async function seedOrg(label: string) {
     },
   })
 
-  return { userId, ids: { orgId, siteId, versionId, leadId: lead.id } as Ids, slug }
+  return { userId, ids: { orgId, siteId, versionId, leadId: lead.id, domainId: domain.id } as Ids, slug }
 }
 
 let A: Awaited<ReturnType<typeof seedOrg>>
@@ -284,6 +301,11 @@ describe('cross-tenant writes', () => {
     }
 
     // Nothing B owns may have moved.
+    // B's domain must be untouched by anything A did.
+    const domain = await rawPrisma.site_domains.findUnique({ where: { id: B.ids.domainId } })
+    expect(domain?.status).toBe('active')
+    expect(domain?.site_id).toBe(B.ids.siteId)
+
     const site = await rawPrisma.sites.findUnique({ where: { id: B.ids.siteId } })
     expect(site?.name).toBe('Site b')
     expect(site?.status).toBe('draft')
@@ -341,6 +363,15 @@ describe('onboarding drafts are per user', () => {
         }),
       ),
     ).toBe('CONFLICT')
+  })
+})
+
+describe('platform-only procedures', () => {
+  it('a tenant gets NOT_FOUND, not FORBIDDEN, for an operator route', async () => {
+    // NOT_FOUND on purpose: FORBIDDEN confirms the route exists, which is a small
+    // gift to anyone probing for an admin surface.
+    for (const path of procedurePaths().filter((p) => COVERAGE[p]?.kind === 'platform'))
+      expect(await codeOf(invoke(A.userId, path, undefined)), path).toBe('NOT_FOUND')
   })
 })
 

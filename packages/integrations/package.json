@@ -29,6 +29,7 @@
     "./mail": "./src/mail.ts",
     "./turnstile": "./src/turnstile.ts",
     "./rate-limit": "./src/rate-limit.ts",
-    "./stripe": "./src/stripe.ts"
+    "./stripe": "./src/stripe.ts",
+    "./cloudflare": "./src/cloudflare.ts"
   }
 }

@@ -5,6 +5,7 @@ import { orgRouter } from './routers/org.js'
 import { aiRouter } from './routers/ai.js'
 import { onboardingRouter } from './routers/onboarding.js'
 import { billingRouter } from './routers/billing.js'
+import { domainRouter } from './routers/domain.js'
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({ ok: true, ts: new Date().toISOString() })),
@@ -14,6 +15,7 @@ export const appRouter = router({
   ai: aiRouter,
   onboarding: onboardingRouter,
   billing: billingRouter,
+  domain: domainRouter,
 })
 
 export type AppRouter = typeof appRouter
