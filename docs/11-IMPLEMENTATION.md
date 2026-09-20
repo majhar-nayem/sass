@@ -17,60 +17,47 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 
 ## Progress — 20 September 2026
 
-**Weeks 1–4 of the build complete.** Sign up → describe a business → generate → publish →
-it renders on the tenant hostname, responsive and accessible. **207 tests**, lint clean,
-both apps build. Remote: `github.com/majhar-nayem/sass` (all commits SSH-signed).
+**Weeks 1–5 of the build complete** — the whole product loop except generation running
+live. Sign up → org + subdomain → edit by chat or by hand → undo → publish → it renders
+on the tenant hostname, responsive and accessible. **262 tests**, lint clean, both apps
+build. Remote: `github.com/majhar-nayem/sass`, all commits SSH-signed.
 
 ```bash
 pnpm install && pnpm db:up && pnpm db:migrate && pnpm --filter @awning/db seed:demo
 pnpm verify
 pnpm --filter @awning/app dev      # :3000 dashboard
 pnpm --filter @awning/render dev   # :3001 tenant sites
-open http://daves-plumbing.awningsites.localhost:3001
 ```
 
 | | Ticket | State |
 |---|---|---|
-| F-01…F-05 | Monorepo, Docker, migrations, RLS, CI | **done** |
-| F-07…F-09 | Better Auth, orgs, `orgProcedure`, dashboard shell | **done** |
-| **F-10** | **Isolation matrix generated from the router** | **done** — mutation-proven |
+| F-01…F-05, F-07…F-09 | Foundation, auth, orgs, tRPC, dashboard | **done** |
+| **F-10** | Isolation matrix generated from the router | **done** — caught all 9 new AI procedures |
 | S-01…S-03 | Spec package, generators, spec migrations | **done** |
 | R-01, R-02 | Renderer, tenant resolution, subdomains | **done** |
-| C-01…C-04 | 10 components / 33 variants + globals, Tailwind | **done** |
-| C-05 | axe gate, every component × every variant | **done** — 48 tests |
-| **A-01** | **`runAiAction`: metering before the await, retries** | **done** |
-| **A-02** | **Cached prompt prefix + industry packs** | **done** — stability tested |
-| **A-03** | **Generation via structured outputs** | **written, unexercised** — needs an API key |
-| **A-04** | **Validation pipeline incl. ACL + contrast + plan limits** | **done** |
-| **A-05** | **Retry with the validator's own error text** | **done** |
-| **A-06** | **Eval harness, 30 briefs, 10 of them hostile** | **done offline; needs a key to run live** |
-| **A-07** | **Quota, spend cap, rate limit, circuit breaker** | **done** — 16 tests on real Postgres |
+| C-01…C-05 | 10 components / 33 variants, Tailwind, axe gate | **done** |
+| A-01, A-02 | `runAiAction`, cached prefix, industry packs | **done** |
+| A-03 | Generation via structured outputs | **written, unexercised** — needs an API key |
+| A-04, A-05 | Validation pipeline, retry with error text | **done** |
+| A-06 | Eval harness, 30 briefs (10 hostile) | **done offline**; needs a key to run live |
+| A-07 | Quota, spend cap, rate limit, circuit breaker | **done** — 16 tests on real Postgres |
+| **A-08** | **Edit tool calls, addressed by sectionId** | **done** — 36 tests |
+| **A-09** | **Intent router + spec digest** | **done** |
+| **A-10** | **Version history, undo, restore** | **done** — 21 tests, verified over HTTP |
+| **A-11** | **Deterministic fast path** | **done** — no model call |
 | C-06 | Stock image pool | not started |
 | F-06 | Fly ×3 + Neon + Upstash | deferred — local Postgres/Redis |
 | F-11 | Sentry | not started — needs a DSN |
-| **A-08…A-11** | **Chat editing: tool calls, router, versioning, undo** | **next** |
+| **P-01, P-05, P-06** | **Onboarding wizard, chat editor UI, live preview** | **next** |
 
 ### Test counts
-`@awning/tenancy` 71 · `@awning/ui-blocks` 48 · `@awning/ai` 38 · `@awning/spec` 32 ·
-`@awning/db` 10 · `@awning/api` 8
-
-### Model choice, corrected against current pricing
-
-| | Model | In / Out per 1M | Why |
-|---|---|---|---|
-| Generation, copy rewrites | `claude-opus-5` | $5 / $25 | Design judgement and copy **are** the product |
-| Edits, SEO, classification | `claude-haiku-4-5` | $1 / $5 | A tool call with one argument buys no judgement |
-
-The docs originally specified Sonnet for generation at $3/$15 — that was last-generation
-pricing. Sonnet 5 is $2/$10, and Opus 5 is $5/$25. At ~A$0.31 a generation against
-A$49/month revenue the difference is about twenty cents a customer, so generation runs on
-Opus. A typical customer costs **under A$2/month** in model calls; there is a test
-asserting it.
+`@awning/ai` 74 · `@awning/tenancy` 71 · `@awning/ui-blocks` 48 · `@awning/spec` 32 ·
+`@awning/api` 21 · `@awning/db` 10
 
 ### Defects found by building, not by review
 
-**The versioned cache key in `02-ARCHITECTURE.md` §7 cannot work as written** — Prisma
-cannot run on Next's edge runtime.
+**The versioned cache key in `02-ARCHITECTURE.md` §7 cannot work** — Prisma cannot run on
+Next's edge runtime.
 
 **Every "no site here" state must return 404, not 200**, or Google indexes thin pages
 across the wildcard domain.
@@ -79,11 +66,14 @@ across the wildcard domain.
 
 **`autoContrast` used a luminance threshold of 0.45 when the crossover is 0.179.**
 
-**The contrast validator could never fire.** It asked whether each brand colour had
-*some* legible foreground — always true, worst case 4.58:1. The pairing that genuinely
-fails is the accent used as small text: the demo's eyebrow, price and star text were
-~3.2:1, failing AA, and axe missed it because jsdom cannot compute CSS. Brand accent is
-now for fills, with a text-safe variant derived from it.
+**The contrast validator could never fire** — it checked whether a brand colour had *some*
+legible foreground (always true). The real failure is the accent as small text: the demo's
+eyebrow, price and star text were ~3.2:1, failing AA.
+
+**`import.meta.dirname` is undefined once a bundler processes a module.** Reading the
+component catalogue from disk passed every test and made `@awning/ai` unimportable by the
+app. Generated artefacts are now `.ts` modules that get imported; nothing reads the
+filesystem at runtime.
 
 ## 0. How to read a ticket
 
