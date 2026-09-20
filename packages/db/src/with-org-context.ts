@@ -40,12 +40,21 @@ export async function withOrgContext<T>(
 }
 
 /**
- * Escape hatch for the few genuinely org-less paths: hostname resolution, Stripe
- * webhooks, cron. Every call site must say why in the `reason` argument, which makes
- * them greppable at review time.
+ * Escape hatch for the genuinely org-less paths. Every call site must say why in the
+ * `reason` argument, which makes them greppable at review time.
+ *
+ * 'session' is the subtle one: establishing who is making a request necessarily happens
+ * before we know which org they are acting on, so the lookup cannot be org-scoped. It is
+ * narrow by construction — a user row by id, nothing else.
  */
 export async function withoutOrgContext<T>(
-  reason: 'tenant-resolution' | 'webhook' | 'cron' | 'migration' | 'platform-admin',
+  reason:
+    | 'tenant-resolution'
+    | 'session'
+    | 'webhook'
+    | 'cron'
+    | 'migration'
+    | 'platform-admin',
   fn: (db: PrismaTx) => Promise<T>,
 ): Promise<T> {
   const { rawPrisma } = await import('./client.js')

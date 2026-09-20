@@ -90,15 +90,20 @@ model audit_log {
 }
 
 model auth_accounts {
-  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id             String    @db.Uuid
-  provider            String
-  provider_account_id String
-  access_token        String?
-  refresh_token       String?
-  expires_at          DateTime? @db.Timestamptz(6)
-  created_at          DateTime  @default(now()) @db.Timestamptz(6)
-  users               users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                  String    @db.Uuid
+  provider                 String
+  provider_account_id      String
+  access_token             String?
+  refresh_token            String?
+  access_token_expires_at  DateTime? @db.Timestamptz(6)
+  created_at               DateTime  @default(now()) @db.Timestamptz(6)
+  refresh_token_expires_at DateTime? @db.Timestamptz(6)
+  id_token                 String?
+  scope                    String?
+  password                 String?
+  updated_at               DateTime  @default(now()) @db.Timestamptz(6)
+  users                    users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([provider, provider_account_id])
 }
@@ -111,6 +116,8 @@ model auth_sessions {
   user_agent                                 String?
   impersonated_by                            String?  @db.Uuid
   created_at                                 DateTime @default(now()) @db.Timestamptz(6)
+  token                                      String   @unique
+  updated_at                                 DateTime @default(now()) @db.Timestamptz(6)
   users_auth_sessions_impersonated_byTousers users?   @relation("auth_sessions_impersonated_byTousers", fields: [impersonated_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   users_auth_sessions_user_idTousers         users    @relation("auth_sessions_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
@@ -642,7 +649,6 @@ model users {
   name                                               String?
   avatar_url                                         String?
   phone                                              String?
-  password_hash                                      String?
   last_login_at                                      DateTime?          @db.Timestamptz(6)
   is_platform_admin                                  Boolean            @default(false)
   created_at                                         DateTime           @default(now()) @db.Timestamptz(6)
@@ -669,6 +675,18 @@ model webhook_events {
   error        String?
   attempts     Int       @default(0) @db.SmallInt
   created_at   DateTime  @default(now()) @db.Timestamptz(6)
+}
+
+model auth_verifications {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  identifier String
+  value      String
+  expires_at DateTime @db.Timestamptz(6)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([expires_at], map: "auth_verifications_expires_idx")
+  @@index([identifier])
 }
 
 enum ai_action_type {

@@ -1,0 +1,22 @@
+{
+  "name": "@awning/auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "echo noop",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@awning/db": "workspace:*",
+    "better-auth": "^1.2.0",
+    "@awning/tenancy": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6",
+    "vitest": "^2"
+  }
+}

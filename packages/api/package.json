@@ -1,0 +1,19 @@
+{
+  "name": "@awning/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": { "build": "echo noop", "typecheck": "tsc --noEmit", "test": "vitest run" },
+  "dependencies": {
+    "@awning/auth": "workspace:*",
+    "@awning/db": "workspace:*",
+    "@awning/spec": "workspace:*",
+    "@awning/tenancy": "workspace:*",
+    "@trpc/server": "^11.0.0",
+    "superjson": "^2.2.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": { "typescript": "^5.6", "vitest": "^2" }
+}
