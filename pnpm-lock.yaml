@@ -8,6 +8,15 @@ importers:
 
   .:
     devDependencies:
+      '@awning/db':
+        specifier: workspace:*
+        version: link:packages/db
+      '@awning/integrations':
+        specifier: workspace:*
+        version: link:packages/integrations
+      '@awning/spec':
+        specifier: workspace:*
+        version: link:packages/spec
       '@eslint/js':
         specifier: ^9
         version: 9.39.5
@@ -20,6 +29,12 @@ importers:
       prettier:
         specifier: ^3
         version: 3.9.6
+      sharp:
+        specifier: ^0.33.5
+        version: 0.33.5
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.13
       turbo:
         specifier: ^2
         version: 2.10.12

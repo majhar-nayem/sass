@@ -3,6 +3,7 @@ import { validateSpec } from '../validate.js'
 import { Section } from '../spec.js'
 import { COMPONENTS } from '../components/index.js'
 import type { WebsiteSpec } from '../spec.js'
+import { STOCK_MANIFEST } from '../stock-manifest.js'
 
 /**
  * The guardrail suite. These are not style checks — most of them encode an obligation
@@ -204,6 +205,26 @@ describe('ACL: countdowns must reference a real deadline', () => {
   it('accepts a real deadline', () => {
     const soon = new Date(Date.now() + 30 * 864e5).toISOString()
     expect(check(cd({ heading: 'Christmas orders close', endsAt: soon })).ok).toBe(true)
+  })
+})
+
+describe('image references', () => {
+  // The model is given a list of ids. Inventing one outside that list used to produce a
+  // site that renders with a hole in it, which looks like our bug, not the model's.
+  it('rejects a stock id that is not in the library', () => {
+    const r = check((d) => {
+      d.pages[0].sections[0].props.image = { assetId: 'stock:butcher-hero-sunset', alt: 'A butcher at work' }
+    })
+    expect(r.ok).toBe(false)
+    expect(reasons(r).join()).toMatch(/not an image in the library/)
+  })
+
+  it('accepts an id that is in the library', () => {
+    const real = STOCK_MANIFEST.entries[0]!.id
+    const r = check((d) => {
+      d.pages[0].sections[0].props.image = { assetId: `stock:${real}`, alt: 'Background texture' }
+    })
+    expect(r.ok).toBe(true)
   })
 })
 

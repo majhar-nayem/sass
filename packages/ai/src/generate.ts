@@ -1,4 +1,5 @@
 import { WEBSITE_SPEC_JSON_SCHEMA } from '@awning/spec/generated/schema.js'
+import { poolForPrompt, selectPool, STOCK_MANIFEST } from '@awning/spec'
 import { validateSpec, type SpecError, type ValidationCtx, type WebsiteSpec } from '@awning/spec'
 import { runAiAction } from './client.js'
 import { buildSystemPrefix, businessInput } from './prompt.js'
@@ -29,7 +30,11 @@ export interface GenerateOptions {
   userId?: string
   brief: Brief
   verifiedFacts?: ValidationCtx['verifiedFacts']
-  /** stock: ids the model may reference. Empty means it writes an imageless site. */
+  /**
+   * Overrides the images offered. Left unset, the industry's slice of the stock pool
+   * is used — a site with no photographs at all reads as unfinished, and the pool
+   * exists precisely so day one does not look like that.
+   */
   availableImages?: Array<{ assetId: string; description: string }>
   maxAttempts?: number
 }
@@ -62,9 +67,16 @@ function userTurn(o: GenerateOptions): string {
       ? `<verified_facts>\n${JSON.stringify(o.verifiedFacts, null, 2)}\n</verified_facts>\nOnly these credentials and track-record claims may appear on the site.`
       : '<verified_facts>\nNone. Do not state any credential, licence, certification, years in business, award or review.\n</verified_facts>',
     '',
-    o.availableImages?.length
-      ? `<available_images>\n${o.availableImages.map((i) => `${i.assetId}: ${i.description}`).join('\n')}\n</available_images>`
-      : '<available_images>\nNone. Build a site that reads well with no photographs rather than referencing images that do not exist.\n</available_images>',
+    (() => {
+      const images =
+        o.availableImages ??
+        poolForPrompt(selectPool(STOCK_MANIFEST, { industry: o.brief.industry }))
+      return images.length
+        ? `<available_images>\nUse ONLY these ids. Anything else is rejected.\n${images
+            .map((i) => `${i.assetId}: ${i.description}`)
+            .join('\n')}\n</available_images>`
+        : '<available_images>\nNone. Build a site that reads well with no photographs rather than referencing images that do not exist.\n</available_images>'
+    })(),
     '',
     `Suggested section order for this trade: ${pack.sectionOrder.join(' -> ')}`,
     `Today's date: ${new Date().toISOString().slice(0, 10)}`,

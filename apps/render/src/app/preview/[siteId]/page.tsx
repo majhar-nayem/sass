@@ -81,8 +81,12 @@ export default async function Preview({
 
   const page = spec.pages.find((p) => p.path === (pagePath ?? '/')) ?? spec.pages[0]!
   // No host prop: structured data for a draft would advertise an unpublished site.
-  const assets = Object.fromEntries(
-    site.site_assets.map((a) => [`asset_${a.id.replace(/-/g, '')}`, a.public_url]),
+  const stock = await withoutOrgContext('tenant-resolution', (db) =>
+    db.stock_assets.findMany({ select: { id: true, public_url: true } }),
   )
+  const assets = {
+    ...Object.fromEntries(stock.map((a) => [`stock:${a.id}`, a.public_url])),
+    ...Object.fromEntries(site.site_assets.map((a) => [`asset_${a.id.replace(/-/g, '')}`, a.public_url])),
+  }
   return <SpecRenderer spec={spec} page={page} business={business} siteId={siteId} assets={assets} />
 }

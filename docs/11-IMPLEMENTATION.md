@@ -17,11 +17,11 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 
 ## Progress — 20 September 2026
 
-**Every ticket through week 8 is done except C-06 and the two that need cloud accounts.**
+**Every ticket through week 8 is done except the two that need cloud accounts.**
 Sign up → trial → seven questions → a website → edit by typing → choose a plan →
 publish → custom domain → a visitor enquires → the tradie rings them back. A failed
 payment runs a schedule. An operator can see what a customer sees, and it is audited.
-**426 tests**, lint clean, both apps build.
+**446 tests**, lint clean, both apps build.
 
 ```bash
 pnpm install && pnpm db:up && pnpm db:migrate
@@ -43,13 +43,33 @@ curl -X POST "localhost:3000/api/cron?job=all" -H "Authorization: Bearer $CRON_S
 | **O-02** | **Operator console: audited impersonation, AI grants, audit trail** | **done** |
 | **O-04** | **Daily digest, AI spend alerts, tenant canaries** | **done** |
 | **O-05** | **Generated tenant privacy policy** | **done** |
-| C-06 | Stock image pool | **next** |
+| **C-06** | **Stock pipeline, manifest contract, ingest — photo curation outstanding** | **done (see below)** |
 | F-06, F-11 | Fly/Neon/Upstash, Sentry | need accounts |
 | O-05b | Platform T&Cs / AUP | needs the lawyer, not code |
 
 ### Test counts
-`@awning/api` 131 · `@awning/tenancy` 82 · `@awning/ai` 74 · `@awning/spec` 64 ·
+`@awning/api` 131 · `@awning/tenancy` 82 · `@awning/spec` 84 · `@awning/ai` 74 ·
 `@awning/ui-blocks` 48 · `@awning/integrations` 17 · `@awning/db` 10
+
+### C-06 is built but the pool is nearly empty
+
+The pipeline is done and proven end to end: a `stock:` id in a spec resolves through
+`load-site.ts` to a URL, renders as an `<img>` with alt text, and the asset route serves
+the bytes. `selectPool()` feeds the industry's slice to the model, and `validateSpec`
+rejects an id that is not in the manifest — so an invented id is an error someone can
+find rather than a hole in the layout.
+
+What is **not** done is the curation. The manifest ships three procedural textures. It
+does not ship the ~40 photographs per industry the ticket asks for, because I will not
+write photographer names, Unsplash ids and source URLs I have not verified — inventing
+attribution is the same class of mistake the ACL validator exists to prevent, and it
+would fail on a real customer's site rather than here.
+
+`packages/spec/stock/CURATION.md` is the brief: the shot list per niche, the entry
+format, and the rules `pnpm stock:validate` enforces (credit and source URL required for
+Unsplash/Pexels; a generated image may never be typed as a photograph). Adding photos is
+editing one JSON file and running `pnpm stock:ingest` — no code changes. Until then
+generated sites lean on colour and type, which the templates already do well.
 
 ### Still blocked on credentials
 `ANTHROPIC_API_KEY` — **A-03 has still never made a call**, and the digest now reports

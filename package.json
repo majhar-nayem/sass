@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@9.15.9",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
@@ -15,7 +17,9 @@
     "db:migrate": "pnpm --filter @awning/db migrate",
     "db:reset": "pnpm --filter @awning/db reset",
     "db:seed": "pnpm --filter @awning/db seed",
-    "verify": "pnpm typecheck && pnpm lint && pnpm test"
+    "verify": "pnpm typecheck && pnpm lint && pnpm test",
+    "stock:ingest": "tsx scripts/ingest-stock.ts",
+    "stock:validate": "tsx scripts/validate-stock.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9",
@@ -25,6 +29,11 @@
     "turbo": "^2",
     "typescript": "^5.6",
     "typescript-eslint": "^8",
-    "vitest": "^2"
+    "vitest": "^2",
+    "tsx": "^4.19.2",
+    "@awning/spec": "workspace:*",
+    "@awning/db": "workspace:*",
+    "@awning/integrations": "workspace:*",
+    "sharp": "^0.33.5"
   }
 }

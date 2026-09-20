@@ -83,10 +83,20 @@ export const loadSiteByHost = cache(async function loadSiteByHost(
     openingHours: (site.opening_hours as BusinessFacts['openingHours']) ?? null,
   }
 
-  const assetRows = await withoutOrgContext('tenant-resolution', (db) =>
-    db.site_assets.findMany({ where: { site_id: tenant.siteId }, select: { id: true, public_url: true } }),
-  )
-  const assets = Object.fromEntries(assetRows.map((a) => [`asset_${a.id.replace(/-/g, '')}`, a.public_url]))
+  // Uploads belong to the tenant; stock is shared. Both resolve into one map so the
+  // components never need to know which kind an id is.
+  const [assetRows, stockRows] = await Promise.all([
+    withoutOrgContext('tenant-resolution', (db) =>
+      db.site_assets.findMany({ where: { site_id: tenant.siteId }, select: { id: true, public_url: true } }),
+    ),
+    withoutOrgContext('tenant-resolution', (db) =>
+      db.stock_assets.findMany({ select: { id: true, public_url: true } }),
+    ),
+  ])
+  const assets = {
+    ...Object.fromEntries(stockRows.map((a) => [`stock:${a.id}`, a.public_url])),
+    ...Object.fromEntries(assetRows.map((a) => [`asset_${a.id.replace(/-/g, '')}`, a.public_url])),
+  }
 
   return { kind: 'ok', site: { tenant, spec: result.spec, business, assets } }
 })

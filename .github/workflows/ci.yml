@@ -33,6 +33,10 @@ jobs:
       # hand-edited a generated file. See docs/05-COMPONENTS.md §1.
       - run: git diff --exit-code -- packages/spec/generated || (echo "::error::generated spec files are stale — run pnpm gen:spec" && exit 1)
 
+      # Curation data is hand-edited, and a bad entry reaches a customer's site as a
+      # missing image or an uncredited photograph.
+      - run: pnpm stock:validate
+
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm lint
