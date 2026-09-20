@@ -63,6 +63,17 @@ const COVERAGE: Record<string, Strategy> = {
   // grounds that it calls a model: asking for another org's site must fail at the draft
   // lookup, BEFORE any model call, and this proves it does — a version that reached the
   // API would both leak and cost money.
+  // Billing reads and writes the caller's OWN org by definition — there is no id to
+  // pass. The isolation question is whether a member of A can ever see B's plan,
+  // Stripe customer or period end, which the unfiltered read below covers.
+  'billing.status': { kind: 'isolated', input: () => undefined },
+  'billing.plans': { kind: 'isolated', input: () => undefined },
+  // checkout and portal reach Stripe. They are admin-gated and org-scoped; the
+  // role test below proves staff cannot reach them, and without STRIPE_SECRET_KEY
+  // they fail before any network call.
+  'billing.checkout': { kind: 'isolated', input: () => ({ planCode: 'founding' }), mutates: false },
+  'billing.portal': { kind: 'isolated', input: () => ({ returnPath: '/' }), mutates: false },
+
   'ai.quota': { kind: 'isolated', input: () => undefined },
   'ai.chat': {
     kind: 'isolated',
@@ -334,6 +345,17 @@ describe('onboarding drafts are per user', () => {
 })
 
 describe('role enforcement', () => {
+  /**
+   * M-02. The seeded orgs have no subscription, so an owner asking to publish must be
+   * refused on payment rather than on permission — proving the gate is the paywall and
+   * not an accident of the role check.
+   */
+  it('an owner without a subscription is refused publishing on payment, not permission', async () => {
+    expect(await codeOf(invoke(A.userId, 'site.publish', { siteId: A.ids.siteId }))).toBe(
+      'PAYMENT_REQUIRED',
+    )
+  })
+
   it('a staff member cannot publish', async () => {
     await rawPrisma.memberships.updateMany({
       where: { org_id: A.ids.orgId, user_id: A.userId },

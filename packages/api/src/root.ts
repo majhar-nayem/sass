@@ -4,6 +4,7 @@ import { leadRouter } from './routers/lead.js'
 import { orgRouter } from './routers/org.js'
 import { aiRouter } from './routers/ai.js'
 import { onboardingRouter } from './routers/onboarding.js'
+import { billingRouter } from './routers/billing.js'
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({ ok: true, ts: new Date().toISOString() })),
@@ -12,6 +13,7 @@ export const appRouter = router({
   lead: leadRouter,
   ai: aiRouter,
   onboarding: onboardingRouter,
+  billing: billingRouter,
 })
 
 export type AppRouter = typeof appRouter

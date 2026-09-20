@@ -33,6 +33,7 @@ export function Editor({
   previewUrl,
   versions: initialVersions,
   quota,
+  billing,
   startedFromTemplate,
 }: {
   siteId: string
@@ -42,6 +43,7 @@ export function Editor({
   previewUrl: string
   versions: Version[]
   quota: { used: number; limit: number }
+  billing: { status: string; canPublish: boolean; trialDaysLeft: number | null }
   startedFromTemplate: boolean
 }) {
   const [turns, setTurns] = useState<Turn[]>(
@@ -167,6 +169,11 @@ export function Editor({
         >
           {published ? 'Live' : 'Draft'}
         </span>
+        {billing.trialDaysLeft !== null && !billing.canPublish && (
+          <span className="hidden rounded-full bg-surface px-2 py-0.5 text-xs text-muted sm:inline">
+            {billing.trialDaysLeft} days left in your trial
+          </span>
+        )}
         <span className="ml-auto hidden font-mono text-xs text-muted tabular-nums sm:inline">
           {used}/{quota.limit} changes
         </span>
@@ -184,7 +191,7 @@ export function Editor({
           disabled={busy}
           className="min-h-9 rounded-lg bg-brand px-4 text-sm font-semibold text-white disabled:opacity-40"
         >
-          {published ? 'Publish changes' : 'Publish'}
+          {published ? 'Publish changes' : billing.canPublish ? 'Publish' : 'Publish — choose a plan'}
         </button>
       </header>
 

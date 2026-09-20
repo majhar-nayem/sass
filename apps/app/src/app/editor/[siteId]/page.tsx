@@ -25,9 +25,10 @@ export default async function EditorPage({
   const site = await caller.site.get({ siteId }).catch(() => null)
   if (!site) notFound()
 
-  const [versions, quota] = await Promise.all([
+  const [versions, quota, billing] = await Promise.all([
     caller.site.listVersions({ siteId }),
     caller.ai.quota(),
+    caller.billing.status(),
   ])
 
   const previewBase = process.env.PREVIEW_BASE_URL ?? 'http://localhost:3001'
@@ -42,6 +43,11 @@ export default async function EditorPage({
       previewUrl={`${previewBase}/preview/${siteId}?t=${token}`}
       versions={versions.map((v) => ({ id: v.id, version: v.version, summary: v.summary, createdBy: v.created_by }))}
       quota={{ used: quota.used, limit: quota.limit }}
+      billing={{
+        status: billing.status,
+        canPublish: billing.canPublish,
+        trialDaysLeft: billing.trialDaysLeft,
+      }}
       startedFromTemplate={note === 'template'}
     />
   )

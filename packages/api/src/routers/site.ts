@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { TRPCError } from '@trpc/server'
 import { invalidateTenant } from '@awning/tenancy'
 import { validateSpec } from '@awning/spec'
+import { canPublish } from '@awning/integrations/stripe'
 import { adminProcedure, orgProcedure, router, type OrgContext } from '../trpc.js'
 
 const siteId = z.object({ siteId: z.string().uuid() })
@@ -65,6 +66,27 @@ export const siteRouter = router({
    */
   publish: adminProcedure.input(siteId).mutation(async ({ ctx, input }) => {
     const c = ctx as unknown as OrgContext
+
+    /**
+     * M-02 -- publishing is the paywall, not generating.
+     *
+     * A trial can build, edit and preview as much as it likes. The card is asked for at
+     * the moment the owner wants the site live, which is the moment they have already
+     * decided it is worth something. Asking earlier converts far worse.
+     */
+    const sub = await c.db.subscriptions.findUnique({
+      where: { org_id: c.membership.orgId },
+      select: { status: true },
+    })
+    if (!sub || !canPublish(sub.status))
+      throw new TRPCError({
+        code: 'PAYMENT_REQUIRED',
+        message:
+          sub?.status === 'trialing'
+            ? 'Your site is ready to go live — choose a plan to publish it.'
+            : 'Your subscription is not active. Update your billing to publish.',
+      })
+
     const site = await c.db.sites.findUnique({
       where: { id: input.siteId },
       select: { id: true, draft_version_id: true, first_published_at: true },

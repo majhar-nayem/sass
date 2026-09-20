@@ -86,6 +86,22 @@ export async function createOrgForUser(input: {
         status: 'draft',
       },
     })
+    /**
+     * A trial subscription, created with the org.
+     *
+     * Without this every new org fails checkQuota with 'no_subscription' and can never
+     * use the AI at all — which the template fallback quietly covered for. The trial is
+     * the funnel: generating and previewing are free, and publishing is what asks for a
+     * card (docs/06-COMMERCE-BILLING.md §2).
+     */
+    await tx.subscriptions.create({
+      data: {
+        org_id: orgId,
+        plan_code: 'founding',
+        status: 'trialing',
+        trial_ends_at: new Date(Date.now() + 14 * 864e5),
+      },
+    })
     await tx.site_domains.create({
       data: {
         site_id: siteId,
