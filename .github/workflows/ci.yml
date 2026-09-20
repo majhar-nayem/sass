@@ -49,8 +49,8 @@ jobs:
       - run: pnpm lint
       - run: pnpm db:migrate
       # The migration creates awning_app without a password, because a migration is
-      # version-controlled. Give it the local one so the app role can actually connect.
-      - run: pnpm --filter @awning/db dev:roles
+      # version-controlled. Give it the throwaway CI one so the role can connect at all.
+      - run: pnpm --filter @awning/db run dev:roles
       - run: pnpm test
 
       # The image is not exercised by any test, so without this it breaks quietly and
