@@ -141,6 +141,18 @@ const COVERAGE: Record<string, Strategy> = {
   // acceptance can predate the org existing.
   'onboarding.outstandingTerms': { kind: 'authed' },
 
+  // M-03. All four take a siteId, so the cross-tenant case is a real one: a tenant
+  // who reaches another tenant's store settings can read where their money goes and,
+  // worse, point onboarding at it.
+  'store.payments': { kind: 'isolated', input: (b) => ({ siteId: b.siteId }) },
+  'store.syncPayments': { kind: 'isolated', input: (b) => ({ siteId: b.siteId }), mutates: true },
+  'store.startStripeOnboarding': {
+    kind: 'isolated',
+    input: (b) => ({ siteId: b.siteId }),
+    mutates: true,
+  },
+  'store.disconnectStripe': { kind: 'isolated', input: (b) => ({ siteId: b.siteId }), mutates: true },
+
   'ai.replaceImage': {
     kind: 'isolated',
     input: (b) => ({ siteId: b.siteId, sectionId: 'hero-main', path: 'image', assetId: 'asset_pwned123' }),
