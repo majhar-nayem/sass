@@ -8,6 +8,7 @@ import { billingRouter } from './routers/billing.js'
 import { domainRouter } from './routers/domain.js'
 import { adminRouter } from './routers/admin.js'
 import { storeRouter } from './routers/store.js'
+import { productRouter } from './routers/product.js'
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({ ok: true, ts: new Date().toISOString() })),
@@ -20,6 +21,7 @@ export const appRouter = router({
   domain: domainRouter,
   admin: adminRouter,
   store: storeRouter,
+  product: productRouter,
 })
 
 export type AppRouter = typeof appRouter
