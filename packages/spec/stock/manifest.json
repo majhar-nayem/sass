@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "texture-warm-grain",
+      "industries": [],
+      "description": "Soft warm gradient with fine grain, for use behind text",
+      "tags": ["background", "warm", "subtle"],
+      "kind": "texture",
+      "licence": "generated",
+      "credit": null,
+      "sourceUrl": null,
+      "fetchUrl": null
+    },
+    {
+      "id": "texture-cool-grain",
+      "industries": [],
+      "description": "Cool grey-blue gradient with fine grain, for use behind text",
+      "tags": ["background", "cool", "subtle"],
+      "kind": "texture",
+      "licence": "generated",
+      "credit": null,
+      "sourceUrl": null,
+      "fetchUrl": null
+    },
+    {
+      "id": "texture-deep-grain",
+      "industries": [],
+      "description": "Deep near-black gradient with fine grain, for a dark section",
+      "tags": ["background", "dark", "subtle"],
+      "kind": "texture",
+      "licence": "generated",
+      "credit": null,
+      "sourceUrl": null,
+      "fetchUrl": null
+    }
+  ]
+}

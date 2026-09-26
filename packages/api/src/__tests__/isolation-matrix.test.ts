@@ -137,6 +137,9 @@ const COVERAGE: Record<string, Strategy> = {
   'onboarding.draft': { kind: 'authed' },
   'onboarding.saveDraft': { kind: 'authed' },
   'onboarding.complete': { kind: 'authed' },
+  // Scoped to the signed-in person, not an org: terms are accepted by a human, and
+  // acceptance can predate the org existing.
+  'onboarding.outstandingTerms': { kind: 'authed' },
 
   'ai.replaceImage': {
     kind: 'isolated',
@@ -369,6 +372,7 @@ describe('onboarding drafts are per user', () => {
     expect(
       await codeOf(
         invoke(A.userId, 'onboarding.complete', {
+          acceptTerms: true,
           answers: { businessName: 'Second Co', description: 'another one' },
         }),
       ),

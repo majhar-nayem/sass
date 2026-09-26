@@ -1,5 +1,6 @@
 import { handleStripeEvent } from '@awning/api'
 import { parseWebhook } from '@awning/integrations/stripe'
+import { logger, reportError } from '@awning/integrations/observability'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
   } catch (e) {
     // 400, not 500: a bad signature is a rejected request, and returning 500 would make
     // Stripe retry something that can never succeed.
-    console.warn('[stripe] rejected webhook:', (e as Error).message)
+    logger.warn('stripe.webhook.rejected', { message: (e as Error).message })
     return new Response('Invalid signature.', { status: 400 })
   }
 
@@ -31,7 +32,7 @@ export async function POST(req: Request) {
   } catch (e) {
     // A 500 asks Stripe to retry, which is what we want for a transient database
     // failure. The idempotency record means the retry is safe.
-    console.error('[stripe] handler failed', event.type, (e as Error).message)
+    reportError(e, { stripe_event: event.type })
     return new Response('Handler failed.', { status: 500 })
   }
 }

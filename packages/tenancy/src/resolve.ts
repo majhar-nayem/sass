@@ -29,6 +29,24 @@ function client(): Redis | null {
 const key = (h: string) => `tenant:v1:${h}`
 
 /**
+ * Is the cache reachable? Used by the deep health check.
+ *
+ * `null` means no cache is configured, which is a valid deployment — resolution falls
+ * back to Postgres. That is reported as "off", not as a failure, so a health check does
+ * not go red for a choice someone made deliberately.
+ */
+export async function pingCache(): Promise<'ok' | 'off' | 'unreachable'> {
+  const c = client()
+  if (!c) return 'off'
+  try {
+    await c.ping()
+    return 'ok'
+  } catch {
+    return 'unreachable'
+  }
+}
+
+/**
  * Contract #7 -- the hottest path in the system. Every uncached tenant request runs this.
  *
  * Redis (~1 ms) then Postgres (~8 ms), with misses cached briefly too: an unknown host

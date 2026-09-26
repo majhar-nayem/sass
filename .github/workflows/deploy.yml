@@ -1,0 +1,54 @@
+name: Deploy
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Two deploys of the same app at once race for the migration advisory lock.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Never deploy a red build. Skips silently until FLY_API_TOKEN exists, so the repo
+    # is not permanently red before there is an account to deploy to.
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' ||
+           github.event.workflow_run.conclusion == 'success') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: check for credentials
+        id: creds
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: echo "ready=${{ secrets.FLY_API_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+
+      # The dashboard first: its release_command applies the migrations, which are
+      # expand-only, so the renderer's current code keeps working against the new schema.
+      - name: deploy dashboard (runs migrations)
+        if: steps.creds.outputs.ready == 'true'
+        env: { FLY_API_TOKEN: "${{ secrets.FLY_API_TOKEN }}" }
+        run: flyctl deploy -c fly.app.toml --build-arg APP=app --remote-only
+
+      - name: deploy renderer
+        if: steps.creds.outputs.ready == 'true'
+        env: { FLY_API_TOKEN: "${{ secrets.FLY_API_TOKEN }}" }
+        run: flyctl deploy -c fly.render.toml --build-arg APP=render --remote-only
+
+      - name: verify both are serving
+        if: steps.creds.outputs.ready == 'true'
+        run: |
+          for host in app.awning.au sites.awningsites.com; do
+            echo "== $host"
+            curl -fsS --retry 5 --retry-delay 5 "https://$host/api/health/deep"
+          done
+
+      - name: no credentials yet
+        if: steps.creds.outputs.ready != 'true'
+        run: echo "::notice::FLY_API_TOKEN is not set — skipping deploy."

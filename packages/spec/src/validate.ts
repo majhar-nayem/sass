@@ -1,5 +1,7 @@
 import { WebsiteSpecification, type WebsiteSpec } from './spec.js'
 import { AA_BODY, AA_LARGE, contrastRatio } from './contrast.js'
+import { STOCK_MANIFEST } from './stock-manifest.js'
+import { unknownStockIds } from './stock.js'
 
 export interface SpecError {
   path: string
@@ -162,6 +164,16 @@ export function validateSpec(input: unknown, ctx: ValidationCtx = {}): Validatio
       path: '/theme/accent',
       stage: 'a11y',
       message: 'The accent is almost identical to the primary colour, so buttons will not stand out.',
+    })
+
+  // --- stock references ------------------------------------------------------
+  // A model can invent a plausible id, and the renderer would silently drop the image —
+  // which reads as a broken layout rather than as an error anyone can trace.
+  for (const bad of unknownStockIds(spec, STOCK_MANIFEST))
+    errors.push({
+      path: '/pages',
+      stage: 'semantic',
+      message: `"${bad}" is not an image in the library. Use one of the ids you were given, or leave the image out.`,
     })
 
   // --- plan limits -------------------------------------------------------------

@@ -214,3 +214,80 @@ export async function auditTrail(db: PrismaTx, orgId: string, limit = 100) {
     },
   })
 }
+
+/**
+ * O-05b -- taking a site down for an Acceptable Use Policy breach.
+ *
+ * Separate from dunning suspension, which is about money and reverses itself the
+ * moment an invoice is paid. This one is a judgement call by a person, so it records
+ * who made it and why: the AUP promises the customer a record of what was removed and
+ * on what grounds, and that promise needs somewhere to read it from.
+ *
+ * Deliberately does NOT delete anything. A wrong takedown must be reversible, and
+ * evidence has to survive the incident.
+ */
+export async function suspendForAup(
+  db: PrismaTx,
+  adminUserId: string,
+  siteId: string,
+  reason: string,
+  opts: { immediate?: boolean } = {},
+): Promise<{ siteId: string; orgId: string }> {
+  if (reason.trim().length < 20)
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'Give the actual reason — the customer is entitled to it and it goes in the audit log.',
+    })
+
+  const site = await db.sites.findUnique({ where: { id: siteId }, select: { id: true, org_id: true, status: true } })
+  if (!site) throw new TRPCError({ code: 'NOT_FOUND' })
+
+  await db.sites.update({
+    where: { id: siteId },
+    // The cache epoch bump is what makes it disappear now rather than in five minutes.
+    data: { status: 'suspended', cache_epoch: { increment: 1 } },
+  })
+
+  await audit(db, {
+    action: 'admin.aup_suspend',
+    actorUserId: adminUserId,
+    orgId: site.org_id,
+    entityType: 'site',
+    entityId: siteId,
+    metadata: { reason, immediate: opts.immediate ?? false, previousStatus: site.status },
+  })
+
+  return { siteId, orgId: site.org_id }
+}
+
+/** Putting it back, with the same accountability as taking it down. */
+export async function restoreAfterAup(
+  db: PrismaTx,
+  adminUserId: string,
+  siteId: string,
+  reason: string,
+): Promise<void> {
+  const site = await db.sites.findUnique({
+    where: { id: siteId },
+    select: { org_id: true, published_version_id: true },
+  })
+  if (!site) throw new TRPCError({ code: 'NOT_FOUND' })
+
+  await db.sites.update({
+    where: { id: siteId },
+    // Only back to published if there is something to publish; otherwise it is a draft.
+    data: {
+      status: site.published_version_id ? 'published' : 'draft',
+      cache_epoch: { increment: 1 },
+    },
+  })
+
+  await audit(db, {
+    action: 'admin.aup_restore',
+    actorUserId: adminUserId,
+    orgId: site.org_id,
+    entityType: 'site',
+    entityId: siteId,
+    metadata: { reason },
+  })
+}

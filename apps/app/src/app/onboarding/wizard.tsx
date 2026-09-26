@@ -59,6 +59,7 @@ export function Wizard({ initial, initialStep }: { initial: Answers; initialStep
   const [a, setA] = useState<Answers>(initial)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Autosave, debounced. Saving only at the end would protect nobody: the drop-offs
@@ -75,7 +76,13 @@ export function Wizard({ initial, initialStep }: { initial: Answers; initialStep
 
   const set = (patch: Answers) => setA((prev) => ({ ...prev, ...patch }))
   const canAdvance =
-    step === 0 ? Boolean(a.businessName?.trim()) : step === 1 ? Boolean(a.description?.trim()) : true
+    step === 0
+      ? Boolean(a.businessName?.trim())
+      : step === 1
+        ? Boolean(a.description?.trim())
+        : step === STEPS - 1
+          ? acceptedTerms
+          : true
 
   async function finish() {
     setBusy(true)
@@ -96,6 +103,7 @@ export function Wizard({ initial, initialStep }: { initial: Answers; initialStep
           whatsapp: a.whatsapp || undefined,
           wantsEcommerce: a.wantsEcommerce ?? false,
         },
+        acceptTerms: true,
       })
       router.push(`/editor/${out.siteId}${out.note ? '?note=template' : ''}`)
     } catch (e) {
@@ -221,6 +229,32 @@ export function Wizard({ initial, initialStep }: { initial: Answers; initialStep
               className="mt-0.5 h-5 w-5"
             />
             <span>I want to sell things online as well</span>
+          </label>
+
+          {/*
+            O-05b. Unticked by default and required to proceed: a pre-ticked box
+            records an agreement nobody actually gave, which is worse than no record
+            at all. The links open in a new tab so seven answers are not lost to
+            reading the terms.
+          */}
+          <label className="mt-6 flex items-start gap-3 border-t border-rule pt-6 text-sm">
+            <input
+              type="checkbox"
+              checked={acceptedTerms}
+              onChange={(e) => setAcceptedTerms(e.target.checked)}
+              className="mt-0.5 h-5 w-5"
+            />
+            <span>
+              I agree to the{' '}
+              <a href="/legal/terms" target="_blank" rel="noreferrer" className="text-brand underline">
+                terms of service
+              </a>{' '}
+              and the{' '}
+              <a href="/legal/acceptable-use" target="_blank" rel="noreferrer" className="text-brand underline">
+                acceptable use policy
+              </a>
+              .
+            </span>
           </label>
         </Step>
       )}

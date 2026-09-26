@@ -13,14 +13,15 @@
     "@awning/api": "workspace:*",
     "@awning/auth": "workspace:*",
     "@awning/db": "workspace:*",
+    "@awning/integrations": "workspace:*",
+    "@awning/tenancy": "workspace:*",
+    "@sentry/nextjs": "^10.75.0",
     "@trpc/server": "^11.0.0",
     "better-auth": "^1.2.0",
     "next": "^15",
     "react": "^19",
     "react-dom": "^19",
-    "superjson": "^2.2.1",
-    "@awning/tenancy": "workspace:*",
-    "@awning/integrations": "workspace:*"
+    "superjson": "^2.2.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

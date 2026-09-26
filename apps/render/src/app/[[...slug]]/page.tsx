@@ -2,6 +2,13 @@ import { headers } from 'next/headers'
 import { notFound, permanentRedirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { SpecRenderer } from '@awning/ui-blocks'
+import {
+  enrichRequestContext,
+  logger,
+  reportError,
+  requestIdFrom,
+  runWithRequestContext,
+} from '@awning/integrations/observability'
 import { loadSiteByHost } from '@/lib/load-site'
 
 // Tenant pages are per-host, so they cannot be prerendered at build time.
@@ -35,8 +42,21 @@ export async function generateMetadata({
 }
 
 export default async function TenantPage({ params }: { params: Promise<{ slug?: string[] }> }) {
-  const host = await hostname()
+  const h = await headers()
+  const host = h.get('host') ?? ''
+  // F-11: one request id for every line this request writes, taken from the edge when
+  // Cloudflare or Fly already assigned one so the two sides of a hop join up.
+  return runWithRequestContext(
+    { requestId: requestIdFrom(h), service: 'render', route: '/[[...slug]]' },
+    () => renderTenant(host, params),
+  )
+}
+
+async function renderTenant(host: string, params: Promise<{ slug?: string[] }>) {
   const result = await loadSiteByHost(host)
+  // Tag as soon as the tenant is known, so anything that throws below is attributable.
+  const tenant = result.kind === 'ok' ? result.site.tenant : 'tenant' in result ? result.tenant : null
+  if (tenant) enrichRequestContext({ siteId: tenant.siteId, orgId: tenant.orgId })
 
   switch (result.kind) {
     /**
@@ -54,7 +74,7 @@ export default async function TenantPage({ params }: { params: Promise<{ slug?: 
     case 'suspended':
       // Distinguished in the logs even though the visitor sees the same 404 — we do not
       // want a suspended site indexed either, and the owner is chased by email, not here.
-      console.warn(`[render] suspended site served 404: ${host}`)
+      logger.warn('render.suspended', { host })
       return notFound()
 
     case 'redirect': {
@@ -67,9 +87,13 @@ export default async function TenantPage({ params }: { params: Promise<{ slug?: 
      * customer site. Throw: that is a 500, it pages someone, and it is never a partial
      * render of a business's website.
      */
-    case 'broken':
-      console.error(`[render] unrenderable spec for ${host}: ${result.reason}`)
-      throw new Error(`Unrenderable published spec for ${host}`)
+    case 'broken': {
+      // A schema change has reached a live customer site. This is the one that pages
+      // someone, so it is reported explicitly rather than left to the generic handler.
+      const err = new Error(`Unrenderable published spec for ${host}`)
+      reportError(err, { host, reason: result.reason })
+      throw err
+    }
 
     case 'ok': {
       const { slug } = await params
