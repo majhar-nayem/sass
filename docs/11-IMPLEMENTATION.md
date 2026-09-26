@@ -21,7 +21,7 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 Sign up → trial → seven questions → a website → edit by typing → choose a plan →
 publish → custom domain → a visitor enquires → the tradie rings them back. A failed
 payment runs a schedule. An operator can see what a customer sees, and it is audited.
-**507 tests**, lint clean, both apps build, and both ship as a Docker image that has
+**555 tests**, lint clean, both apps build, and both ship as a Docker image that has
 been run and proven to serve a real tenant website.
 
 ```bash
@@ -48,6 +48,7 @@ curl -X POST "localhost:3000/api/cron?job=all" -H "Authorization: Bearer $CRON_S
 | **F-06** | **Docker image, Fly configs, migrations, health, deploy pipeline** | **done (accounts outstanding)** |
 | **F-11** | **Sentry with tenant tags, scrubbing, structured logs with `request_id`** | **done (needs a DSN)** |
 | **O-05b** | **Terms + AUP drafted, acceptance recorded, takedown path** | **drafts need the lawyer** |
+| **M-04** | **Products, categories, CSV import** | **done** |
 
 ### Test counts
 `@awning/api` 148 · `@awning/spec` 96 · `@awning/tenancy` 82 · `@awning/ai` 74 ·
@@ -215,6 +216,47 @@ edge and browsers alike.
 CI now also boots the built app image and asks it for a real page. That would not have
 caught this one, and the comment there says so; it catches the class that the missing
 Prisma engine belonged to.
+
+### M-04 — forty products out of a spreadsheet
+
+The acceptance criterion names the real problem: the spreadsheet was not written for us.
+It came out of Excel or MYOB, the headers say whatever the owner typed, prices have
+dollar signs, and row 23 is blank because they left a gap before the Christmas hams.
+
+So the parser is RFC 4180 with no dependency (quoted commas and embedded newlines are
+routine in descriptions), header matching is forgiving — Product / Name / Item, Price /
+Sell Price / Retail — and every problem names its row. An import that fails wholesale on
+row 23 of 40 is an import nobody completes. Ambiguity resolves the safe way and says so:
+an unreadable GST column charges GST, an unreadable quantity turns stock tracking off,
+and everything imports as a draft, because forty products appearing live the moment a
+file is dropped is not a recoverable surprise.
+
+Re-importing matches on SKU, then on name, because the second import is nearly always
+the same sheet with the prices changed.
+
+**The ACL point.** A struck-out "was" price that was never the actual selling price is
+misleading conduct — the thing the spec validator refuses to let the AI generate and the
+thing our own AUP tells customers not to do. A CSV cannot attest to it: the file is a
+list of numbers, and whether they were ever charged is a fact only the business knows.
+So the owner ticks a box, unticked by default, and without it the was-prices are dropped
+while the products still import. The database enforces the same rule
+(`compare_at_needs_attestation`). Mutation-tested.
+
+### Three defects, each found by a different kind of check
+
+**Row numbers drifted past blank rows.** Found by running a realistic sheet end to end,
+not by a test: blanks were filtered before numbering, so a spacer row before the
+Christmas section sent the owner to the wrong line in Excel — which is the entire point
+of the number. The parser now keeps blank rows and skips them during iteration.
+
+**A whitespace cleanup gutted the BOM regex.** Fixing a lint complaint about irregular
+whitespace deleted the literal BOM character out of `/^\uFEFF/`, leaving `/^/`, which
+strips nothing. Written as an escape now, with a comment saying why.
+
+**The BOM test could never have caught that.** It asserted through `mapHeaders`, which
+strips non-alphanumerics anyway and so absorbs a BOM by accident. It passed with
+BOM-stripping entirely disabled. It now asserts on the parser's own output, and a
+mutation confirms it fails without the fix.
 
 ### Still blocked on credentials
 `ANTHROPIC_API_KEY` — **A-03 has still never made a call**, and the digest now reports

@@ -6,3 +6,4 @@ export { runDunning, decideDunning, restoreAfterPayment, GRACE_DAYS, type Dunnin
 export { audit, startImpersonation, endImpersonation, grantAiCredit, listOrgs, auditTrail, ImpersonationRefused, suspendForAup, restoreAfterAup } from './admin.js'
 export { collectDigest, renderDigest, digestAlerts, sendDigest, runCanaries, type DigestData } from './monitoring.js'
 export { LEGAL_DOCUMENTS, legalDocument, outstandingDocuments, acceptCurrentDocuments, acceptanceHistory, acceptanceMatchesCurrentText, requiredDocuments, stillOutstanding, type LegalDocument } from './legal/index.js'
+export { parseProductCsv, parseCsv, parseMoneyCents, previewProductCsv, importProducts, listProducts, listCategories, attachProductImage, type ParsedProduct, type RowProblem, type ImportSummary } from './products/index.js'
