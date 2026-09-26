@@ -7,6 +7,7 @@ import { onboardingRouter } from './routers/onboarding.js'
 import { billingRouter } from './routers/billing.js'
 import { domainRouter } from './routers/domain.js'
 import { adminRouter } from './routers/admin.js'
+import { productRouter } from './routers/product.js'
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({ ok: true, ts: new Date().toISOString() })),
@@ -18,6 +19,7 @@ export const appRouter = router({
   billing: billingRouter,
   domain: domainRouter,
   admin: adminRouter,
+  product: productRouter,
 })
 
 export type AppRouter = typeof appRouter

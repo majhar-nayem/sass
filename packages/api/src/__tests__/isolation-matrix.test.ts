@@ -141,6 +141,30 @@ const COVERAGE: Record<string, Strategy> = {
   // acceptance can predate the org existing.
   'onboarding.outstandingTerms': { kind: 'authed' },
 
+  // M-04. A tenant who reaches another tenant's products can read their whole
+  // catalogue and their margins, and `import` can overwrite it.
+  'product.list': { kind: 'isolated', input: (b) => ({ siteId: b.siteId }) },
+  'product.categories': { kind: 'isolated', input: (b) => ({ siteId: b.siteId }) },
+  'product.previewImport': {
+    kind: 'isolated',
+    input: (b) => ({ siteId: b.siteId, csv: 'Title,Price\nProbe,1.00' }),
+    mutates: true,
+  },
+  'product.import': {
+    kind: 'isolated',
+    input: (b) => ({ siteId: b.siteId, csv: 'Title,Price\nProbe,1.00' }),
+    mutates: true,
+  },
+  'product.attachImage': {
+    kind: 'isolated',
+    input: (b) => ({
+      siteId: b.siteId,
+      productId: '00000000-0000-0000-0000-000000000001',
+      assetId: '00000000-0000-0000-0000-000000000002',
+    }),
+    mutates: true,
+  },
+
   'ai.replaceImage': {
     kind: 'isolated',
     input: (b) => ({ siteId: b.siteId, sectionId: 'hero-main', path: 'image', assetId: 'asset_pwned123' }),
