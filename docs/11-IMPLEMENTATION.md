@@ -15,13 +15,13 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 
 ---
 
-## Progress — 20 September 2026
+## Progress — 26 September 2026
 
-**Every code ticket through week 8 is done. What remains needs accounts or a lawyer.**
+**Week 8 closed and merged (PR #1). Track A has started: M-03 is done.**
 Sign up → trial → seven questions → a website → edit by typing → choose a plan →
 publish → custom domain → a visitor enquires → the tradie rings them back. A failed
 payment runs a schedule. An operator can see what a customer sees, and it is audited.
-**507 tests**, lint clean, both apps build, and both ship as a Docker image that has
+**527 tests**, lint clean, both apps build, and both ship as a Docker image that has
 been run and proven to serve a real tenant website.
 
 ```bash
@@ -48,9 +48,10 @@ curl -X POST "localhost:3000/api/cron?job=all" -H "Authorization: Bearer $CRON_S
 | **F-06** | **Docker image, Fly configs, migrations, health, deploy pipeline** | **done (accounts outstanding)** |
 | **F-11** | **Sentry with tenant tags, scrubbing, structured logs with `request_id`** | **done (needs a DSN)** |
 | **O-05b** | **Terms + AUP drafted, acceptance recorded, takedown path** | **drafts need the lawyer** |
+| **M-03** | **Stripe Connect Standard onboarding** | **done (needs Stripe keys to exercise)** |
 
 ### Test counts
-`@awning/api` 148 · `@awning/spec` 96 · `@awning/tenancy` 82 · `@awning/ai` 74 ·
+`@awning/api` 168 · `@awning/spec` 96 · `@awning/tenancy` 82 · `@awning/ai` 74 ·
 `@awning/ui-blocks` 48 · `@awning/integrations` 40 · `@awning/db` 19
 
 ### C-06 is built but the pool is nearly empty
@@ -215,6 +216,42 @@ edge and browsers alike.
 CI now also boots the built app image and asks it for a real page. That would not have
 caught this one, and the comment there says so; it catches the class that the missing
 Prisma engine belonged to.
+
+### M-03 — the tenant's own Stripe account
+
+Connect Standard, so money settles to the tenant's bank and never touches a balance we
+control. Two hazards shaped the code.
+
+**Orphaning.** `accounts.create` is not idempotent and the account it makes is
+permanent, so the id is written to our database *before* the owner is sent anywhere and
+never created twice. Most owners do not finish in one sitting — Stripe wants an ABN, a
+bank account and photo ID — so resuming the same account is the common path, not the
+edge case.
+
+**Trust.** Stripe's `return_url` is an unsigned redirect an owner reaches by finishing,
+by pressing back, or by abandoning the form. Only `charges_enabled`, read back from
+Stripe, sets `stripe_onboarded_at`; `details_submitted` means the form was filled in,
+which is not the same as being able to take a payment. Proved by mutation: swapping one
+for the other fails four tests.
+
+A Connect webhook keeps that honest afterwards — Stripe re-verifies businesses and
+restricts accounts months later, and without it a shop keeps advertising checkout long
+after Stripe stopped allowing it. `account.application.deauthorized` clears the
+connection when a tenant revokes access from their own dashboard. Disconnecting never
+deletes their Stripe account: it holds their payout history and their customers'
+receipts, and it is not ours to delete.
+
+### A missing constraint, found by a flaky test
+
+The Connect webhook resolves a tenant by `stripe_account_id`. That is only sound if the
+mapping is unique — true of Stripe's ids in reality, but enforced nowhere. A test
+fixture reused one fake id across runs and the webhook began resolving to a row from an
+earlier run, failing two tests in three.
+
+The fixture was wrong, but so was the schema: a duplicate would have applied one
+tenant's account status to another tenant's shop, switching payments on or off for a
+business that never touched Stripe. There is now a partial unique index, and a test that
+asserts the database refuses the duplicate.
 
 ### Still blocked on credentials
 `ANTHROPIC_API_KEY` — **A-03 has still never made a call**, and the digest now reports
