@@ -217,6 +217,23 @@ describe('the whole page', () => {
     expect(await violationsOf(html(), 'page')).toEqual([])
   })
 
+  // M-08. The footer publishes the ABN to every visitor, so it gets the same rule as the
+  // tax invoice: a number that fails the ABN check is not printed at all.
+  it('prints a valid ABN in the footer, grouped the way the ABR prints it', () => {
+    expect(html()).toContain('ABN 51 824 753 556')
+  })
+
+  it('does not publish an ABN that fails the check', () => {
+    const typo = renderToStaticMarkup(
+      <SpecRenderer
+        spec={spec}
+        page={(spec as never as { pages: never[] }).pages[0]!}
+        business={{ ...business, abn: '51824753557' }}
+      />,
+    )
+    expect(typo).not.toContain('ABN')
+  })
+
   it('has exactly one h1 and no skipped heading levels', () => {
     document.body.innerHTML = html()
     expect(document.querySelectorAll('h1')).toHaveLength(1)

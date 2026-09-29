@@ -13,6 +13,7 @@
   "dependencies": {
     "@awning/db": "workspace:*",
     "@awning/integrations": "workspace:*",
+    "@awning/spec": "workspace:*",
     "stripe": "^17.5.0"
   },
   "devDependencies": {

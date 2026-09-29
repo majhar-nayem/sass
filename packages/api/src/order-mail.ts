@@ -1,5 +1,6 @@
 import type { PrismaTx } from '@awning/db'
 import { sendMail } from '@awning/integrations/mail'
+import { buildReceipt, renderReceiptText } from '@awning/commerce'
 
 /**
  * M-07 -- telling the butcher, and telling the customer.
@@ -51,11 +52,16 @@ async function send(
     select: {
       order_number: true, total_cents: true, gst_cents: true, email: true, phone: true,
       customer_name: true, owner_notified_at: true, customer_notified_at: true,
-      order_items: { select: { title: true, quantity: true, line_total_cents: true } },
+      paid_at: true, created_at: true,
+      order_items: {
+        select: { title: true, quantity: true, unit_price_cents: true, line_total_cents: true, gst_free: true },
+      },
       sites: {
         select: {
           name: true, business_email: true, business_phone: true,
-          organizations: { select: { billing_email: true, gst_registered: true } },
+          organizations: {
+            select: { billing_email: true, gst_registered: true, abn: true, legal_name: true, timezone: true },
+          },
         },
       },
     },
@@ -63,6 +69,20 @@ async function send(
   if (!o) return { owner: false, customer: false }
 
   const lines = o.order_items.map((i) => `  ${i.quantity} × ${i.title}`.padEnd(40) + money(i.line_total_cents))
+  const org = o.sites.organizations
+  // M-08. The customer's copy IS the receipt — a tax invoice when every ATO requirement
+  // is met, otherwise a receipt, with the reason given to the owner below.
+  const receipt = buildReceipt({
+    seller: { name: o.sites.name, legalName: org.legal_name, abn: org.abn, gstRegistered: org.gst_registered },
+    orderNumber: o.order_number,
+    issuedAt: o.paid_at ?? o.created_at,
+    timezone: org.timezone,
+    lines: o.order_items.map((i) => ({
+      title: i.title, qty: i.quantity, unitCents: i.unit_price_cents, lineCents: i.line_total_cents, gstFree: i.gst_free,
+    })),
+    totalCents: o.total_cents,
+    buyer: { name: o.customer_name, email: o.email || null },
+  })
   const total = `Total ${money(o.total_cents)}${o.sites.organizations.gst_registered && o.gst_cents > 0 ? ` (includes ${money(o.gst_cents)} GST)` : ''}`
   const ownerTo = o.sites.business_email ?? o.sites.organizations.billing_email
 
@@ -94,6 +114,14 @@ async function send(
         `Email:   ${o.email || '—'}`,
         '',
         'Get in touch with them to arrange collection or delivery.',
+        ...(receipt.problems.length
+          ? [
+              '',
+              'Your customer was sent a receipt, not a tax invoice, because:',
+              ...receipt.problems.map((p) => `  - ${p}`),
+              'Fix this in Settings so the next one is a valid tax invoice.',
+            ]
+          : []),
       ].join('\n'),
       ...(o.email ? { replyTo: o.email } : {}),
     })
@@ -112,17 +140,16 @@ async function send(
       subject: `Your order from ${o.sites.name} (#${o.order_number})`,
       text: [
         `Thanks${o.customer_name ? `, ${o.customer_name.split(' ')[0]}` : ''} — ${o.sites.name} has your order.`,
-        '',
-        ...lines,
-        '',
-        total,
-        '',
         `${o.sites.name} will be in touch about collection or delivery.`,
         ...(o.sites.business_phone ? [`Questions? Ring them on ${o.sites.business_phone}.`] : []),
         '',
-        // Not a tax invoice, and it does not pretend to be one: that needs an ABN and
-        // specific wording, and is M-08's job. Stripe sends the payment receipt.
-        'This is an order confirmation. Your payment receipt comes separately from Stripe.',
+        '────────────────────────────────────────────',
+        renderReceiptText(receipt),
+        '────────────────────────────────────────────',
+        '',
+        receipt.kind === 'tax-invoice'
+          ? 'Keep this email: it is your tax invoice.'
+          : `Need a tax invoice? Reply to this email and ${o.sites.name} can send one.`,
       ].join('\n'),
       ...(o.sites.business_email ? { replyTo: o.sites.business_email } : {}),
     })

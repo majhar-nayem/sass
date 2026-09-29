@@ -280,11 +280,33 @@ describe('telling people', () => {
     await rawPrisma.sites.update({ where: { id: siteId }, data: { name: "Dave's Meats" } })
   })
 
-  it('never calls its own confirmation a tax invoice', async () => {
+  /**
+   * M-08. The customer's email carries the receipt; without a valid ABN on the account
+   * it must not be headed "Tax invoice", and the owner is told what to fix.
+   */
+  it('sends a receipt, not a tax invoice, while the account has no ABN — and tells the owner why', async () => {
     await receiveConnectEvent(event('checkout.session.completed', session([li(ham, 'Christmas Ham', 1, 6800)])))
     const customer = mail.sent.find((m) => m.to === 'jane@example.test')!
-    expect(customer.text).not.toMatch(/tax invoice/i)
-    expect(customer.text).toMatch(/order confirmation/i)
+    expect(customer.text).toMatch(/^RECEIPT$/m)
+    expect(customer.text).not.toMatch(/^TAX INVOICE$/m)
+    const owner = mail.sent.find((m) => m.to === 'owner@example.test')!
+    expect(owner.text).toMatch(/receipt, not a tax invoice/)
+    expect(owner.text).toMatch(/no ABN/)
+  })
+
+  it('sends a tax invoice once the account has a valid ABN, with each line’s GST shown', async () => {
+    await rawPrisma.organizations.update({ where: { id: orgId }, data: { abn: '51824753556' } })
+    const s = session([li(ham, 'Christmas Ham', 1, 6800, false), li(beef, 'Diced Beef', 2, 2250, true)])
+    await receiveConnectEvent(event('checkout.session.completed', s))
+    const customer = mail.sent.find((m) => m.to === 'jane@example.test')!
+    expect(customer.text).toMatch(/^TAX INVOICE$/m)
+    expect(customer.text).toMatch(/ABN 51 824 753 556/)
+    expect(customer.text).toMatch(/Christmas Ham.*incl\. GST/)
+    expect(customer.text).toMatch(/Diced Beef.*GST-free/)
+    expect(customer.text).toMatch(/GST included on taxable items: \$6\.18/)
+    const owner = mail.sent.find((m) => m.to === 'owner@example.test')!
+    expect(owner.text).not.toMatch(/not a tax invoice/)
+    await rawPrisma.organizations.update({ where: { id: orgId }, data: { abn: null } })
   })
 
   /**
