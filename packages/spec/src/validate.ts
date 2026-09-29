@@ -128,7 +128,14 @@ export function validateSpec(input: unknown, ctx: ValidationCtx = {}): Validatio
 
   // Paths the renderer owns. A tenant page here would be shadowed by our own route and
   // simply never appear, which is a baffling bug to debug from the owner's side.
-  const RESERVED_PATHS = ['/preview', '/api', '/_next', '/sitemap.xml', '/robots.txt']
+  // Every platform route that sits beside the tenant catch-all. Next routes a sibling
+  // folder BEFORE the catch-all, so a tenant page at one of these addresses would never
+  // be reachable — it would silently render ours instead. /privacy was missing from
+  // this list from the day O-05 added the route.
+  const RESERVED_PATHS = [
+    '/preview', '/api', '/_next', '/sitemap.xml', '/robots.txt',
+    '/privacy', '/shop', '/cart', '/asset',
+  ]
   for (const page of spec.pages)
     if (RESERVED_PATHS.some((r) => page.path === r || page.path.startsWith(`${r}/`)))
       errors.push({

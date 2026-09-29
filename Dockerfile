@@ -28,6 +28,7 @@ COPY apps/render/package.json         apps/render/
 COPY packages/ai/package.json         packages/ai/
 COPY packages/api/package.json        packages/api/
 COPY packages/auth/package.json       packages/auth/
+COPY packages/commerce/package.json   packages/commerce/
 COPY packages/db/package.json         packages/db/
 COPY packages/integrations/package.json packages/integrations/
 COPY packages/spec/package.json       packages/spec/

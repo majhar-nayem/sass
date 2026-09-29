@@ -21,7 +21,7 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 Sign up → trial → seven questions → a website → edit by typing → choose a plan →
 publish → custom domain → a visitor enquires → the tradie rings them back. A failed
 payment runs a schedule. An operator can see what a customer sees, and it is audited.
-**575 tests**, lint clean, both apps build, and both ship as a Docker image that has
+**620 tests**, lint clean, both apps build, and both ship as a Docker image that has
 been run and proven to serve a real tenant website.
 
 ```bash
@@ -50,6 +50,7 @@ curl -X POST "localhost:3000/api/cron?job=all" -H "Authorization: Bearer $CRON_S
 | **O-05b** | **Terms + AUP drafted, acceptance recorded, takedown path** | **drafts need the lawyer** |
 | **M-03** | **Stripe Connect Standard onboarding** | **done (needs Stripe keys to exercise)** |
 | **M-04** | **Products, categories, CSV import** | **done** |
+| **M-05** | **Cart in a signed cookie, shop and product pages** | **done** |
 
 ### Test counts
 `@awning/api` 168 · `@awning/spec` 96 · `@awning/tenancy` 82 · `@awning/ai` 74 ·
@@ -293,6 +294,56 @@ strips nothing. Written as an escape now, with a comment saying why.
 strips non-alphanumerics anyway and so absorbs a BOM by accident. It passed with
 BOM-stripping entirely disabled. It now asserts on the parser's own output, and a
 mutation confirms it fails without the fix.
+
+### M-05 — a cart that is safe behind a CDN
+
+The acceptance criterion has two halves and the second is the one that bites: the cart
+must survive a reload, **and it must work on a CDN-cached page.** Those pull in opposite
+directions. A cart is per-visitor; a cached page is the same for everybody. Render the
+cart into the page and one cached copy shows a stranger someone else's Christmas order.
+
+So the shop, product and cart pages never read the cookie. They are identical for every
+visitor, and everything per-visitor happens behind `/api/cart`, which the browser calls
+and which answers `private, no-store` on every response.
+
+**Verified on the production build, not in dev.** With and without a cart, `/shop`,
+`/shop/<product>` and `/cart` came back byte-identical 10 times out of 10, with a control
+confirming the comparison can tell two pages apart. `next dev` cannot be used for this:
+React 19 embeds per-request server-component timings in the payload and Next adds a
+cache-buster, so no two dev responses ever match.
+
+**The cookie holds ids and quantities, never money.** Every read re-resolves them
+against the database, for this site, at today's prices, capped to stock. That is where
+integrity comes from — the signature only rejects garbage early and pins a cart to one
+site. `__Host-` is the load-bearing attribute: every tenant shares awningsites.com, and
+without it one tenant's page could plant a cart cookie on the parent domain that every
+other tenant's site would receive.
+
+Until awningsites.com is on the Public Suffix List, **every tenant is the same site as
+every other tenant** to a browser, so SameSite=Lax gives no protection between them.
+The cart API checks `Origin` against `Host` for that reason. Production refuses to run
+the cart without `CART_SECRET` rather than falling back to a known one.
+
+### Found along the way
+
+**`/privacy` was never a reserved path**, and neither was `/asset`. Next routes a sibling
+folder before the tenant catch-all, so a tenant page at either address was silently
+unreachable. Both are reserved now, with `/shop` and `/cart`.
+
+**The privacy policy would have lied after #2 merged.** It decided a site takes online
+orders if a `store_settings` row existed — and M-03's payments screen creates that row
+just by being opened. So visiting a settings page would have made a published privacy
+policy claim the site takes orders and name Stripe as an overseas recipient. There is now
+one definition, `shopStatus().acceptsOrders`, and the privacy page uses it.
+
+**Product pages resolved the shop twice per request** — once for metadata, once for the
+page. Memoising the load halved the database work, and incidentally made the streamed
+HTML deterministic, since both now await the same promise.
+
+**One false alarm, recorded because it nearly shipped as a finding.** The first
+cache-safety run reported cart contents in the `/cart` HTML. That was my check script
+grepping the last file it had written — the product page, which contains its own title.
+The page itself contained no cart data.
 
 ### Still blocked on credentials
 `ANTHROPIC_API_KEY` — **A-03 has still never made a call**, and the digest now reports

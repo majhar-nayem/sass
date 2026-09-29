@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { withoutOrgContext } from '@awning/db'
 import { generatePrivacyPolicy, type WebsiteSpec } from '@awning/spec'
 import { resolveTenant } from '@awning/tenancy'
+import { shopStatus } from '@awning/commerce'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Privacy policy', robots: { index: false } }
@@ -29,12 +30,16 @@ export default async function Privacy() {
         business_phone: true,
         business_address: true,
         organizations: { select: { abn: true } },
-        store_settings: { select: { site_id: true } },
         site_versions_sites_published_version_idTosite_versions: { select: { spec_json: true } },
       },
     }),
   )
   if (!site) notFound()
+
+  // The shop's own definition of "takes orders", not "a settings row exists" — the
+  // payments screen creates that row just by being opened, and this page is a legal
+  // representation the business makes to its customers.
+  const shop = await withoutOrgContext('tenant-resolution', (db) => shopStatus(db, tenant.siteId))
 
   const spec = site.site_versions_sites_published_version_idTosite_versions?.spec_json as
     | WebsiteSpec
@@ -54,7 +59,7 @@ export default async function Privacy() {
     collects: {
       contactForm: types.has('contactForm'),
       newsletter: types.has('newsletter'),
-      onlineOrders: site.store_settings !== null,
+      onlineOrders: shop.acceptsOrders,
       // Cloudflare Web Analytics is cookieless and not linked to a person, which is
       // why these sites need no consent banner — but it is still disclosed.
       analytics: true,

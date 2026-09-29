@@ -10,7 +10,7 @@ const config = {
   output: 'standalone',
   outputFileTracingRoot: path.join(import.meta.dirname, '../..'),
   // Workspace packages ship TypeScript source; there is no build step between them.
-  transpilePackages: ['@awning/ui-blocks', '@awning/spec', '@awning/tenancy', '@awning/db', '@awning/integrations'],
+  transpilePackages: ['@awning/commerce', '@awning/ui-blocks', '@awning/spec', '@awning/tenancy', '@awning/db', '@awning/integrations'],
   poweredByHeader: false,
   // One lint config for the repo (eslint.config.js at the root, run by `pnpm lint` and
   // by CI). Next's build-time lint would apply a second, different rule set.
