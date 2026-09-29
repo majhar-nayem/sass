@@ -11,15 +11,16 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@awning/ai": "workspace:*",
     "@awning/auth": "workspace:*",
+    "@awning/commerce": "workspace:*",
     "@awning/db": "workspace:*",
+    "@awning/integrations": "workspace:*",
     "@awning/spec": "workspace:*",
     "@awning/tenancy": "workspace:*",
     "@trpc/server": "^11.0.0",
     "superjson": "^2.2.1",
-    "zod": "^3.23.8",
-    "@awning/ai": "workspace:*",
-    "@awning/integrations": "workspace:*"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "typescript": "^5.6",

@@ -21,6 +21,9 @@ export interface DigestData {
   aiFailureRate: number
   enquiries: number
   enquiriesNotEmailed: number
+  orders: number
+  /** Paid, recorded, and the owner was never told. On 23 December this is a lost sale. */
+  ordersNotEmailed: number
   domainsStuck: Array<{ hostname: string; status: string; hoursWaiting: number; problem: string | null }>
   pastDue: number
   suspended: number
@@ -32,7 +35,7 @@ export async function collectDigest(db: PrismaTx, now = new Date()): Promise<Dig
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
   const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
 
-  const [signups, published, subs, aiRows, aiFails, enquiries, notEmailed, stuck, suspended, broken] =
+  const [signups, published, subs, aiRows, aiFails, enquiries, notEmailed, stuck, suspended, broken, orders, ordersNotEmailed] =
     await Promise.all([
       db.organizations.count({ where: { created_at: { gte: since } } }),
       db.sites.count({ where: { first_published_at: { gte: since } } }),
@@ -64,6 +67,8 @@ export async function collectDigest(db: PrismaTx, now = new Date()): Promise<Dig
       // visitors. Counted here because nobody would otherwise notice until a customer
       // rang up.
       db.sites.count({ where: { status: 'published', published_version_id: null } }),
+      db.orders.count({ where: { created_at: { gte: since }, status: 'paid' } }),
+      db.orders.count({ where: { created_at: { gte: since }, status: 'paid', owner_notified_at: null } }),
     ])
 
   const total = aiRows._count._all || 0
@@ -80,6 +85,8 @@ export async function collectDigest(db: PrismaTx, now = new Date()): Promise<Dig
     aiFailureRate: total === 0 ? 0 : aiFails / total,
     enquiries,
     enquiriesNotEmailed: notEmailed,
+    orders,
+    ordersNotEmailed,
     domainsStuck: stuck.map((d) => ({
       hostname: d.hostname,
       status: d.status,
@@ -109,6 +116,8 @@ export function digestAlerts(d: DigestData): string[] {
   // The one that costs a customer directly: their lead exists and they never heard.
   if (d.enquiriesNotEmailed > 0)
     alerts.push(`${d.enquiriesNotEmailed} enquiries saved but NOT emailed to the owner`)
+  if (d.ordersNotEmailed > 0)
+    alerts.push(`${d.ordersNotEmailed} PAID orders the owner was never emailed about`)
   if (d.brokenSites > 0) alerts.push(`${d.brokenSites} published sites have no published version`)
   if (d.domainsStuck.length > 0)
     alerts.push(`${d.domainsStuck.length} custom domains stuck over 24h`)
@@ -125,6 +134,7 @@ export function renderDigest(d: DigestData): { subject: string; text: string } {
     `  signups            ${d.signups}`,
     `  sites published    ${d.published}`,
     `  enquiries          ${d.enquiries}`,
+    `  orders             ${d.orders}`,
     '',
     `Business`,
     `  paying customers   ${d.activeCustomers}`,

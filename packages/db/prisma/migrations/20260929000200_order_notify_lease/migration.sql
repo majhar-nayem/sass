@@ -1,0 +1,12 @@
+-- M-07 -- one sender at a time.
+--
+-- Found end to end, not by the unit tests: five simultaneous deliveries of one webhook
+-- made one order — correctly — and then sent the customer five confirmations and the
+-- owner four "New order" emails. Each duplicate checked owner_notified_at, found it
+-- empty because nobody had finished sending yet, and sent.
+--
+-- A butcher with four "New order #2" emails prepares four hams.
+--
+-- A lease, not a flag: exactly one sender wins it, each email is stamped only when it
+-- succeeds, and a sender that dies mid-send lets the lease expire so another can finish.
+ALTER TABLE orders ADD COLUMN notify_lease_until timestamptz;

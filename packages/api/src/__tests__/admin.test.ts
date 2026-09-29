@@ -170,7 +170,7 @@ describe('the daily digest', () => {
   const base = {
     date: '2026-09-20', signups: 3, published: 1, activeCustomers: 12, mrrCents: 48_000,
     aiSpendCents: 200, aiSpendCeilingCents: 4000, aiFailureRate: 0.01,
-    enquiries: 9, enquiriesNotEmailed: 0, domainsStuck: [], pastDue: 0, suspended: 0, brokenSites: 0,
+    enquiries: 9, enquiriesNotEmailed: 0, orders: 3, ordersNotEmailed: 0, domainsStuck: [], pastDue: 0, suspended: 0, brokenSites: 0,
   }
 
   it('says so plainly when there is nothing to do', () => {
@@ -182,6 +182,13 @@ describe('the daily digest', () => {
   it('flags enquiries that were saved but never emailed', () => {
     const alerts = digestAlerts({ ...base, enquiriesNotEmailed: 2 })
     expect(alerts.join()).toMatch(/NOT emailed/i)
+  })
+
+  // A paid order nobody was told about is a customer who paid for a ham that never
+  // gets made. It is louder than the enquiry alert on purpose.
+  it('flags paid orders the owner was never emailed about', () => {
+    const alerts = digestAlerts({ ...base, ordersNotEmailed: 1 })
+    expect(alerts.join()).toMatch(/1 PAID orders the owner was never emailed about/)
   })
 
   it('flags AI spend approaching the ceiling before it trips', () => {

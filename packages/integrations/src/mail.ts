@@ -18,6 +18,12 @@ export interface Mail {
   html?: string
   replyTo?: string
   kind?: MailKind
+  /**
+   * Shown as "<name> via Awning". For mail a tenant's CUSTOMER receives: someone who
+   * bought a ham from Dave should not get a confirmation from a company they have never
+   * heard of — it reads as phishing.
+   */
+  fromName?: string
 }
 
 let transport: Transporter | null = null
@@ -70,6 +76,19 @@ function from(kind: MailKind): string {
 }
 
 /**
+ * Structured, not a string. A business name is tenant-controlled, and building
+ * `"${name}" <addr>` by hand lets a name containing a line break write extra headers.
+ * Nodemailer encodes the object form safely.
+ */
+function fromHeader(mail: Mail): string | { name: string; address: string } {
+  const base = from(mail.kind ?? 'platform')
+  if (!mail.fromName) return base
+  const address = /<([^>]+)>/.exec(base)?.[1] ?? base
+  const name = mail.fromName.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60)
+  return { name: `${name} via Awning`, address }
+}
+
+/**
  * Never throws. A failed notification must not roll back the enquiry that triggered it:
  * losing a tradie's lead because our mail provider blipped is far worse than a missing
  * email, and the row is in the inbox either way.
@@ -77,7 +96,7 @@ function from(kind: MailKind): string {
 export async function sendMail(mail: Mail): Promise<{ sent: boolean; error?: string }> {
   try {
     await tx().sendMail({
-      from: from(mail.kind ?? 'platform'),
+      from: fromHeader(mail),
       to: mail.to,
       subject: mail.subject,
       text: mail.text,

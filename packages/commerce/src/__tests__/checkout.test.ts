@@ -83,7 +83,7 @@ describe('what is charged', () => {
   it('carries our product id on each line, for M-07 to decrement stock', async () => {
     await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: beef, qty: 1 }]), ORIGIN)
     const line = (create.mock.calls[0]![0] as Stripe.Checkout.SessionCreateParams).line_items![0]!
-    expect(line.price_data!.product_data!.metadata).toEqual({ product_id: beef })
+    expect(line.price_data!.product_data!.metadata).toEqual({ product_id: beef, gst_free: '1' })
   })
 
   it('pins the session to this site', async () => {

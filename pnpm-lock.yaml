@@ -191,6 +191,9 @@ importers:
       '@awning/auth':
         specifier: workspace:*
         version: link:../auth
+      '@awning/commerce':
+        specifier: workspace:*
+        version: link:../commerce
       '@awning/db':
         specifier: workspace:*
         version: link:../db

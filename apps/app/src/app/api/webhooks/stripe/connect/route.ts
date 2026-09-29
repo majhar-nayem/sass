@@ -1,6 +1,5 @@
-import { handleConnectEvent } from '@awning/api'
+import { receiveConnectEvent } from '@awning/api'
 import { parseWebhook } from '@awning/integrations/stripe'
-import { withoutOrgContext } from '@awning/db'
 import { logger, reportError, requestIdFrom, runWithRequestContext } from '@awning/integrations/observability'
 
 export const dynamic = 'force-dynamic'
@@ -34,11 +33,11 @@ export async function POST(req: Request) {
     { requestId: requestIdFrom(req.headers), service: 'app', route: '/api/webhooks/stripe/connect' },
     async () => {
       try {
-        const outcome = await withoutOrgContext('webhook', (db) => handleConnectEvent(db, event))
+        const outcome = await receiveConnectEvent(event)
         return Response.json({ outcome })
       } catch (e) {
-        // 500 asks Stripe to retry, which is right for a transient database failure —
-        // and the handler only ever writes a state it recomputes from the event.
+        // 500 asks Stripe to retry. Safe: the claim and the order commit together, so a
+        // failed attempt leaves nothing behind for the retry to trip over.
         reportError(e, { stripe_event: event.type })
         return new Response('Handler failed.', { status: 500 })
       }

@@ -55,9 +55,11 @@ export function buildCheckoutParams(
           unit_amount: l.unitCents,
           product_data: {
             name: l.title,
-            // M-07 maps paid lines back to our products to decrement stock. The
-            // session is the record of what was actually charged.
-            metadata: { product_id: l.productId },
+            // M-07 maps paid lines back to our products to decrement stock, and records
+            // the GST treatment the customer was actually quoted — not whatever the
+            // product says by the time the webhook lands. The session is the record of
+            // what was charged.
+            metadata: { product_id: l.productId, gst_free: l.gstFree ? '1' : '0' },
           },
         },
       })),

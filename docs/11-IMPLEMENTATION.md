@@ -21,7 +21,7 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 Sign up → trial → seven questions → a website → edit by typing → choose a plan →
 publish → custom domain → a visitor enquires → the tradie rings them back. A failed
 payment runs a schedule. An operator can see what a customer sees, and it is audited.
-**645 tests**, lint clean, both apps build, and both ship as a Docker image that has
+**679 tests**, lint clean, both apps build, and both ship as a Docker image that has
 been run and proven to serve a real tenant website.
 
 ```bash
@@ -52,6 +52,7 @@ curl -X POST "localhost:3000/api/cron?job=all" -H "Authorization: Bearer $CRON_S
 | **M-04** | **Products, categories, CSV import** | **done** |
 | **M-05** | **Cart in a signed cookie, shop and product pages** | **done** |
 | **M-06** | **Stripe Checkout on the connected account; Afterpay via the tenant's settings** | **done (needs Stripe keys to exercise)** |
+| **M-07** | **Orders from webhooks, stock taken once, owner + customer email** | **done** |
 
 ### Test counts
 `@awning/api` 168 · `@awning/spec` 96 · `@awning/tenancy` 82 · `@awning/ai` 74 ·
@@ -388,6 +389,48 @@ silently got neither a reminder nor a suspension. In production that is a custom
 cancelling during the nightly run. Reproduced deterministically, fixed with a per-org
 `try` and a `failed` count, and committed separately. The link from the flake to this
 cause is inferred — the failing run's values weren't captured — but the defect is not.
+
+### M-07 — one order, one decrement, one email
+
+"A duplicate webhook creates one order and decrements once" was tested the hard way:
+sequential duplicates, five simultaneous deliveries of one event, and a `completed` and
+an `async_payment_succeeded` for the same session racing each other — which event-level
+dedupe cannot catch at all. Stock moves only on the transition into *paid*, under a
+per-site advisory lock, in the same transaction as the order row. Removing the lock fails
+the racing tests.
+
+**A paid order is never dropped.** The money has been taken, so: a product deleted since
+checkout becomes a line with no product (without that check, the foreign key failed the
+insert and the order was lost — mutation-confirmed); an oversell becomes negative stock
+and an **OVERSOLD** warning in the owner's email; a missing email is recorded as missing.
+
+**Connect delivers everything on the tenant's account**, including their own Stripe sales
+outside Awning. Those are ignored before any Stripe call. The account decides the site and
+the metadata must agree, and a product id is only linked if it belongs to *this* site —
+a tenant writing a competitor's product id into their own session cannot move that
+competitor's stock.
+
+**Verified over HTTP**: signed webhooks into the running dashboard, a real database, real
+SMTP into Mailpit. A forged signature 400s. Five simultaneous deliveries: one order, stock
+10 → 8, and — after the fix below — exactly two emails.
+
+### Three more defects, found by the checks around M-07
+
+**The billing webhook dropped any event that failed once.** It claimed the event id and
+applied it in separate, non-transactional writes, so after a failure Stripe's retry was
+refused as a duplicate. Demonstrated against the real handler, then fixed with
+`processOnce`: claim and apply in one transaction. Committed on its own.
+
+**Five simultaneous deliveries sent the customer five confirmations and the owner four
+"New order" emails.** The order itself was correct; the notification was check-then-send.
+The unit test only exercised sequential duplicates, so only the HTTP run saw it. A butcher
+with four "New order #2" emails prepares four hams. Fixed with a lease on the order's
+notification, and a cron sweep that finishes any email that failed after a successful
+webhook — Stripe will not redeliver an event we answered 200.
+
+**Customer confirmations came from "Awning".** Someone who bought a ham from Dave got an
+email from a company they had never heard of. They now come from "Dave's … via Awning",
+passed as a structured header so a business name cannot inject extra headers.
 
 ### Still blocked on credentials
 `ANTHROPIC_API_KEY` — **A-03 has still never made a call**, and the digest now reports
