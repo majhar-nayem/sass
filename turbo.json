@@ -69,6 +69,7 @@
     "SENTRY_PROJECT",
     "LOG_LEVEL",
     "APP",
-    "NEXT_RUNTIME"
+    "NEXT_RUNTIME",
+    "CART_SECRET"
   ]
 }

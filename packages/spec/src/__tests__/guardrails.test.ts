@@ -255,3 +255,25 @@ describe('accessibility and coherence', () => {
     expect(check((d) => { d.pages[0].path = '/about' }).ok).toBe(false)
   })
 })
+
+/**
+ * Next routes a sibling folder BEFORE the tenant catch-all, so a tenant page at one of
+ * the platform's addresses is silently unreachable — it renders ours instead, and the
+ * owner is left wondering why their edits never appear. /privacy was never on this list.
+ */
+describe('platform addresses a tenant page cannot use', () => {
+  for (const path of ['/privacy', '/shop', '/cart', '/asset', '/shop/christmas-ham'])
+    it(`refuses ${path}`, () => {
+      const r = check((d) => {
+        d.pages.push({ ...structuredClone(d.pages[0]!), id: 'clash', path, title: 'Clash' })
+      })
+      expect(reasons(r).join()).toMatch(/reserved by the platform/)
+    })
+
+  it('still allows an ordinary page', () => {
+    const r = check((d) => {
+      d.pages.push({ ...structuredClone(d.pages[0]!), id: 'about', path: '/about', title: 'About us' })
+    })
+    expect(reasons(r).join()).not.toMatch(/reserved/)
+  })
+})
