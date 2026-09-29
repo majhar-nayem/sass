@@ -1,5 +1,6 @@
 import type { PrismaTx } from '@awning/db'
 import { sendMail } from '@awning/integrations/mail'
+import { reportError } from '@awning/integrations/observability'
 
 /**
  * O-03 -- dunning.
@@ -93,6 +94,8 @@ export interface DunningRun {
   considered: number
   emailed: number
   suspended: number
+  /** Orgs whose step threw. Reported individually; they never stop the rest. */
+  failed: number
 }
 
 /**
@@ -121,53 +124,82 @@ export async function runDunning(db: PrismaTx, now = new Date()): Promise<Dunnin
     },
   })
 
-  const run: DunningRun = { considered: overdue.length, emailed: 0, suspended: 0 }
+  const run: DunningRun = { considered: overdue.length, emailed: 0, suspended: 0, failed: 0 }
 
+  // One org at a time, each in its own try. The sweep is global, so a single row that
+  // vanished mid-run (a cancellation, a deleted org) used to abort it — and every
+  // overdue customer after that row, in an unordered list, silently got neither a
+  // reminder nor a suspension.
   for (const sub of overdue) {
-    const org = sub.organizations
-    const site = org.sites[0]
-    const daysPastDue = Math.floor((now.getTime() - sub.updated_at.getTime()) / 864e5)
-
-    const decision = decideDunning({
-      daysPastDue,
-      emailsSent: (sub.dunning_emails_sent as number[] | null) ?? [],
-      siteName: site?.name ?? org.name,
-      manageUrl: `${appUrl}/billing`,
-    })
-
-    if (decision.action === 'suspend') {
-      await db.sites.updateMany({
-        where: { org_id: sub.org_id, status: 'published' },
-        data: { status: 'suspended', cache_epoch: { increment: 1 } },
-      })
-      run.suspended++
-      continue
-    }
-
-    if (decision.action === 'email') {
-      if (org.billing_email)
-        await sendMail({
-          to: org.billing_email,
-          subject: decision.subject,
-          text: decision.body,
-          kind: 'platform',
-        })
-      // Recorded whether or not the send succeeded: a bounced address must not cause
-      // the same reminder to be retried every hour forever.
-      await db.subscriptions.update({
-        where: { org_id: sub.org_id },
-        data: {
-          dunning_emails_sent: [
-            ...(((sub.dunning_emails_sent as number[] | null) ?? []) as number[]),
-            decision.day,
-          ],
-        },
-      })
-      run.emailed++
+    try {
+      await dunOne(db, sub, now, appUrl, run)
+    } catch (e) {
+      run.failed++
+      reportError(e, { step: 'dunning', org_id: sub.org_id })
     }
   }
 
   return run
+}
+
+/** One org's step. Throws on failure; the caller isolates it. */
+async function dunOne(
+  db: PrismaTx,
+  sub: {
+    org_id: string
+    updated_at: Date
+    dunning_emails_sent: unknown
+    organizations: {
+      name: string
+      billing_email: string | null
+      sites: Array<{ id: string; name: string; status: string }>
+    }
+  },
+  now: Date,
+  appUrl: string,
+  run: DunningRun,
+): Promise<void> {
+  const org = sub.organizations
+  const site = org.sites[0]
+  const daysPastDue = Math.floor((now.getTime() - sub.updated_at.getTime()) / 864e5)
+
+  const decision = decideDunning({
+    daysPastDue,
+    emailsSent: (sub.dunning_emails_sent as number[] | null) ?? [],
+    siteName: site?.name ?? org.name,
+    manageUrl: `${appUrl}/billing`,
+  })
+
+  if (decision.action === 'suspend') {
+    await db.sites.updateMany({
+      where: { org_id: sub.org_id, status: 'published' },
+      data: { status: 'suspended', cache_epoch: { increment: 1 } },
+    })
+    run.suspended++
+    return
+  }
+
+  if (decision.action === 'email') {
+    if (org.billing_email)
+      await sendMail({
+        to: org.billing_email,
+        subject: decision.subject,
+        text: decision.body,
+        kind: 'platform',
+      })
+    // Recorded whether or not the send succeeded: a bounced address must not cause
+    // the same reminder to be retried every hour forever.
+    await db.subscriptions.update({
+      where: { org_id: sub.org_id },
+      data: {
+        dunning_emails_sent: [
+          ...(((sub.dunning_emails_sent as number[] | null) ?? []) as number[]),
+          decision.day,
+        ],
+      },
+    })
+    run.emailed++
+  }
 }
 
 /** Brings a site back the moment payment succeeds. */

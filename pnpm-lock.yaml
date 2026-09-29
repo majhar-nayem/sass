@@ -247,6 +247,9 @@ importers:
       '@awning/integrations':
         specifier: workspace:*
         version: link:../integrations
+      stripe:
+        specifier: ^17.5.0
+        version: 17.7.0
     devDependencies:
       typescript:
         specifier: ^5.6

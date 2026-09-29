@@ -32,6 +32,7 @@
     "./stripe": "./src/stripe.ts",
     "./cloudflare": "./src/cloudflare.ts",
     "./observability": "./src/observability.ts",
-    "./stripe-connect": "./src/stripe-connect.ts"
+    "./stripe-connect": "./src/stripe-connect.ts",
+    "./stripe-checkout": "./src/stripe-checkout.ts"
   }
 }

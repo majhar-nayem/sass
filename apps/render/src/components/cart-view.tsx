@@ -34,6 +34,22 @@ export function CartView() {
   const [cart, setCart] = useState<CartState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [paying, setPaying] = useState(false)
+
+  async function checkout() {
+    setPaying(true)
+    setError(null)
+    try {
+      const r = await fetch('/api/checkout', { method: 'POST' })
+      const body = await r.json()
+      if (!r.ok || !body.url) throw new Error(body.error ?? 'We could not start checkout.')
+      // To Stripe, on the business's own account. Nothing is paid until Stripe says so.
+      window.location.href = body.url
+    } catch (e) {
+      setError((e as Error).message)
+      setPaying(false)
+    }
+  }
 
   useEffect(() => {
     fetch('/api/cart', { cache: 'no-store' })
@@ -56,11 +72,15 @@ export function CartView() {
     }
   }
 
-  if (error) return <p role="alert">{error}</p>
-  if (!cart) return <p aria-busy="true">Loading your cart…</p>
+  if (!cart) return error ? <p role="alert">{error}</p> : <p aria-busy="true">Loading your cart…</p>
 
   return (
     <div>
+      {error && (
+        <p role="alert" className="mb-6 font-semibold">
+          {error}
+        </p>
+      )}
       {cart.unavailable.length > 0 && (
         // Shown, not silently dropped: a ham that vanished from the basket without a
         // word reads as a bug, and it is the kind that loses the sale.
@@ -128,11 +148,18 @@ export function CartView() {
             {cart.gstRegistered && cart.gstCents > 0 && (
               <p className="mt-1 text-sm opacity-70">Includes {money(cart.gstCents)} GST</p>
             )}
-            <p className="mt-4 text-sm opacity-70">
-              {cart.acceptsOrders
-                ? 'Checkout is coming soon.'
-                : 'Online ordering is not open yet — ring us to order.'}
-            </p>
+            {cart.acceptsOrders ? (
+              <button
+                type="button"
+                disabled={busy || paying}
+                onClick={() => void checkout()}
+                className="mt-5 min-h-12 rounded-[var(--radius)] bg-[var(--brand-primary)] px-8 font-semibold text-[var(--brand-on-primary)] disabled:opacity-50"
+              >
+                {paying ? 'Taking you to payment…' : 'Checkout'}
+              </button>
+            ) : (
+              <p className="mt-4 text-sm opacity-70">Online ordering is not open yet — ring us to order.</p>
+            )}
           </div>
         </>
       )}

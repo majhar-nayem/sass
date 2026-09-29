@@ -262,7 +262,7 @@ describe('accessibility and coherence', () => {
  * owner is left wondering why their edits never appear. /privacy was never on this list.
  */
 describe('platform addresses a tenant page cannot use', () => {
-  for (const path of ['/privacy', '/shop', '/cart', '/asset', '/shop/christmas-ham'])
+  for (const path of ['/privacy', '/shop', '/cart', '/checkout', '/checkout/thanks', '/asset', '/shop/christmas-ham'])
     it(`refuses ${path}`, () => {
       const r = check((d) => {
         d.pages.push({ ...structuredClone(d.pages[0]!), id: 'clash', path, title: 'Clash' })

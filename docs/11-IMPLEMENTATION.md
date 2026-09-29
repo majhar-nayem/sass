@@ -21,7 +21,7 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 Sign up → trial → seven questions → a website → edit by typing → choose a plan →
 publish → custom domain → a visitor enquires → the tradie rings them back. A failed
 payment runs a schedule. An operator can see what a customer sees, and it is audited.
-**620 tests**, lint clean, both apps build, and both ship as a Docker image that has
+**645 tests**, lint clean, both apps build, and both ship as a Docker image that has
 been run and proven to serve a real tenant website.
 
 ```bash
@@ -51,6 +51,7 @@ curl -X POST "localhost:3000/api/cron?job=all" -H "Authorization: Bearer $CRON_S
 | **M-03** | **Stripe Connect Standard onboarding** | **done (needs Stripe keys to exercise)** |
 | **M-04** | **Products, categories, CSV import** | **done** |
 | **M-05** | **Cart in a signed cookie, shop and product pages** | **done** |
+| **M-06** | **Stripe Checkout on the connected account; Afterpay via the tenant's settings** | **done (needs Stripe keys to exercise)** |
 
 ### Test counts
 `@awning/api` 168 · `@awning/spec` 96 · `@awning/tenancy` 82 · `@awning/ai` 74 ·
@@ -344,6 +345,49 @@ HTML deterministic, since both now await the same promise.
 cache-safety run reported cart contents in the `/cart` HTML. That was my check script
 grepping the last file it had written — the product page, which contains its own title.
 The page itself contained no cart data.
+
+### M-06 — whose money it is
+
+The acceptance criterion — "a test payment settles to the tenant's account, not yours" —
+comes down to one argument, `{ stripeAccount }`, on one call. With it, the charge is the
+butcher's: their money, their refunds, their chargebacks, and Awning is a software
+vendor. Without it the identical code takes the payment into the *platform* balance, with
+the regulatory weight of holding other people's money, and there is no error either way.
+
+So it is checked three ways. A unit test asserts the argument, and mutation-testing
+confirms it fails without it. Another fails if an application fee, a transfer or
+`on_behalf_of` ever appears. And **over HTTP**, a local stand-in for Stripe recorded the
+actual request the SDK sent: `Stripe-Account: acct_…` of this tenant, authenticated with a
+restricted key, $68.00 AUD read from the database, no hard-coded payment methods.
+
+**The renderer gets a restricted key, not the secret.** F-06 gave it no Stripe key
+because it serves public websites. Checkout needs one, so it gets `STRIPE_CHECKOUT_KEY`,
+scoped to Checkout Sessions, and production refuses an unrestricted `sk_` key there.
+
+**Afterpay is the tenant's switch.** The plan hard-coded `payment_method_types`; Stripe's
+current guidance is dynamic payment methods, and on Connect Standard the settings belong
+to the tenant. `06-COMMERCE-BILLING.md` §3 is corrected, and the payments screen tells
+owners where the switch is.
+
+**The return from Stripe proves nothing on its own.** The session id arrives in a query
+string. It is looked up on *this site's* connected account — verified end to end with
+another tenant's genuine paid session, carrying this site's id spoofed into its metadata,
+which was refused because it does not exist on this account. Only a confirmed payment
+empties the cart. Orders come from the webhook in M-07, because a shopper who pays and
+closes the tab never makes that request.
+
+**Not verified: M-06 has never talked to real Stripe.** Nor has Afterpay been shown on a
+real Checkout page; that needs a connected account with it switched on.
+
+### The dunning sweep stopped at the first bad row
+
+Found as a flaky test while verifying M-06. `runDunning` acts on every past-due
+subscription in one pass with no per-org error handling, so a row that vanished mid-run
+threw, the whole run aborted, and every overdue customer after it in an unordered list
+silently got neither a reminder nor a suspension. In production that is a customer
+cancelling during the nightly run. Reproduced deterministically, fixed with a per-org
+`try` and a `failed` count, and committed separately. The link from the flake to this
+cause is inferred — the failing run's values weren't captured — but the defect is not.
 
 ### Still blocked on credentials
 `ANTHROPIC_API_KEY` — **A-03 has still never made a call**, and the digest now reports

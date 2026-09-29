@@ -174,3 +174,82 @@ describe('runDunning against the database', () => {
     expect(after).toBe(before + 2)
   })
 })
+
+/**
+ * The sweep is global by design: one run acts on every past-due subscription in the
+ * database. So one bad row must not stop it. This was found as a flaky test — about one
+ * run in fourteen — where a parallel test file deleted its own past-due org while this
+ * sweep was part-way through its snapshot. The update for the vanished row threw, the
+ * whole run aborted, and every org after it in an unordered list was silently skipped.
+ *
+ * In production the same shape is a customer cancelling, or an org being deleted,
+ * during the nightly run — and every overdue customer behind them in the list gets no
+ * reminder and no suspension, with only a 500 in the cron log to say so.
+ *
+ * Reproduced deterministically here rather than left to timing.
+ */
+describe('one failing org does not stop the sweep', () => {
+  const ours = randomUUID()
+  const oursSite = randomUUID()
+  const doomed = randomUUID()
+
+  beforeEach(async () => {
+    __useCapturingTransport()
+    await rawPrisma.organizations.deleteMany({ where: { id: { in: [ours, doomed] } } })
+    for (const [id, email] of [[ours, 'ours@example.test'], [doomed, 'gone@example.test']] as const) {
+      const slug = `sweep-${id.slice(0, 8)}`
+      await rawPrisma.organizations.create({ data: { id, name: slug, slug, billing_email: email } })
+      await rawPrisma.subscriptions.create({ data: { org_id: id, plan_code: 'founding', status: 'past_due' } })
+    }
+    await rawPrisma.sites.create({
+      data: { id: oursSite, org_id: ours, name: 'ours', slug: `sweep-s-${oursSite.slice(0, 8)}`, status: 'published' },
+    })
+    // Ours is due for suspension; the doomed one is due a reminder email, which is the
+    // path that writes back to its subscription row.
+    await rawPrisma.subscriptions.update({ where: { org_id: ours }, data: { updated_at: new Date(Date.now() - 14 * 864e5) } })
+    await rawPrisma.subscriptions.update({ where: { org_id: doomed }, data: { updated_at: new Date(Date.now() - 2 * 864e5) } })
+  })
+
+  afterAll(async () => {
+    await rawPrisma.organizations.deleteMany({ where: { id: { in: [ours, doomed] } } })
+  })
+
+  /**
+   * A db whose snapshot puts the doomed org FIRST, and which deletes that org the
+   * moment the sweep reaches it — exactly what a concurrent cancellation looks like.
+   */
+  function racingDb(): PrismaTx {
+    const real = rawPrisma as unknown as PrismaTx
+    const subs = new Proxy(real.subscriptions, {
+      get(target, prop) {
+        if (prop === 'findMany')
+          return async (args: Parameters<typeof target.findMany>[0]) => {
+            const rows = await target.findMany(args as never)
+            const mine = rows.filter((r: { org_id: string }) => r.org_id === ours || r.org_id === doomed)
+            return mine.sort((a: { org_id: string }) => (a.org_id === doomed ? -1 : 1))
+          }
+        if (prop === 'update')
+          return async (args: { where: { org_id?: string } }) => {
+            if (args.where.org_id === doomed) {
+              await rawPrisma.organizations.deleteMany({ where: { id: doomed } })
+            }
+            return (target.update as (a: unknown) => unknown)(args)
+          }
+        return Reflect.get(target, prop)
+      },
+    })
+    return new Proxy(real, { get: (t, p) => (p === 'subscriptions' ? subs : Reflect.get(t, p)) }) as PrismaTx
+  }
+
+  it('still suspends the org behind the one that failed', async () => {
+    await runDunning(racingDb())
+    const site = await rawPrisma.sites.findUnique({ where: { id: oursSite }, select: { status: true } })
+    expect(site?.status).toBe('suspended')
+  })
+
+  it('counts the failure instead of hiding it', async () => {
+    const run = await runDunning(racingDb())
+    expect(run.failed).toBe(1)
+    expect(run.suspended).toBe(1)
+  })
+})

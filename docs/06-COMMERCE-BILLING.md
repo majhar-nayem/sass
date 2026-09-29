@@ -83,16 +83,27 @@ First 50 customers get A$39/mo locked for 12 months via a distinct Stripe Price 
 **Stripe Connect Standard.** The tenant connects (or creates) their own Stripe account. Funds settle directly to their bank. Awning creates Checkout Sessions on their behalf via `stripe-account` header.
 
 ```ts
-const session = await stripe.checkout.sessions.create({
+const session = await checkoutStripe().checkout.sessions.create({
   mode: 'payment',
-  line_items,
-  payment_method_types: ['card','afterpay_clearpay'],
-  shipping_options,
-  customer_email,
+  line_items,                       // priced from the database, never the cookie
+  // no payment_method_types — see the correction below
+  metadata: { site_id },
   success_url, cancel_url,
-  metadata: { site_id, cart_id },
 }, { stripeAccount: store.stripe_account_id })   // ← funds go to the tenant
 ```
+
+> **Corrected during M-06.** This section originally listed
+> `payment_method_types: ['card','afterpay_clearpay']`. Stripe's current guidance is to
+> enable Afterpay in the Dashboard and let **dynamic payment methods** show it to
+> eligible customers, treating an explicit list as legacy. On Connect Standard that
+> Dashboard is the *tenant's*, so hard-coding the list would override the tenant's own
+> settings on their own account. What was built omits it; Afterpay appears when the
+> tenant switches it on and the order is within Afterpay's limits.
+>
+> It also originally assumed the renderer calls Stripe with the platform secret key.
+> F-06 gave the renderer no Stripe key on purpose, so checkout runs on its own
+> **restricted** key (`STRIPE_CHECKOUT_KEY`, Checkout Sessions only), and production
+> refuses an unrestricted `sk_` key there.
 
 Why this and not platform-collect-and-remit:
 
