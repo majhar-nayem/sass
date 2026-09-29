@@ -111,6 +111,25 @@ describe('what a shopper can see', () => {
   })
 })
 
+/**
+ * M-08. "Includes GST" is a claim about the price. A business under the GST threshold
+ * does not charge it, so for them the claim is false.
+ */
+describe('what the product page says about GST', () => {
+  it('a registered business: "Includes GST", or "GST free" for GST-free lines', async () => {
+    const list = await listStorefrontProducts(rawPrisma, siteId)
+    expect(list.find((p) => p.id === ids.ham)!.gstNote).toBe('Includes GST')
+    expect(list.find((p) => p.id === ids.beef)!.gstNote).toBe('GST free')
+  })
+
+  it('a business that is not registered: nothing at all', async () => {
+    await rawPrisma.organizations.update({ where: { id: orgId }, data: { gst_registered: false } })
+    const list = await listStorefrontProducts(rawPrisma, siteId)
+    expect(list.every((p) => p.gstNote === null)).toBe(true)
+    await rawPrisma.organizations.update({ where: { id: orgId }, data: { gst_registered: true } })
+  })
+})
+
 describe('resolving a cart', () => {
   it('prices from the database, never from the cookie', async () => {
     const r = await resolveCart(rawPrisma, siteId, cart([{ productId: ids.ham, qty: 2 }]))

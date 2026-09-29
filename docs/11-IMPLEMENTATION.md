@@ -21,7 +21,7 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 Sign up → trial → seven questions → a website → edit by typing → choose a plan →
 publish → custom domain → a visitor enquires → the tradie rings them back. A failed
 payment runs a schedule. An operator can see what a customer sees, and it is audited.
-**679 tests**, lint clean, both apps build, and both ship as a Docker image that has
+**716 tests**, lint clean, both apps build, and both ship as a Docker image that has
 been run and proven to serve a real tenant website.
 
 ```bash
@@ -431,6 +431,40 @@ webhook — Stripe will not redeliver an event we answered 200.
 **Customer confirmations came from "Awning".** Someone who bought a ham from Dave got an
 email from a company they had never heard of. They now come from "Dave's … via Awning",
 passed as a structured header so a business name cannot inject extra headers.
+
+### M-08 — when a receipt may call itself a tax invoice
+
+Most of M-08 already existed: GST-inclusive prices and per-product `gst_free` have run
+through the importer, cart, checkout and orders since M-04. What was left was the receipt,
+and the acceptance criterion — a fresh-meat line shows no GST, a cooked one does — is the
+ATO's own requirement to show "the extent to which each sale on the invoice is a taxable
+sale". The ATO's current page (updated 18 September 2026) was read directly rather than
+recalled, and each of its seven required details is a test.
+
+The customer's email is now the receipt. It is headed **Tax invoice** only when every
+requirement is met; otherwise it is a **Receipt** and the owner is told exactly what is
+missing. A document headed "Tax invoice" that is not one is worse than a receipt, because
+the customer may claim GST credits on it. An unregistered business's receipt carries no
+GST at all.
+
+### Corrected in M-08
+
+**GST was rounded per line.** The shared rule rounded each taxable line and added them;
+the ATO's total invoice rule totals the taxable lines and rounds once. Per-line rounding
+drifts by up to half a cent a line. The comment claiming per-line rounding was needed to
+exclude GST-free lines was wrong — that is a filter, not a rounding choice.
+
+**ABNs were checked for length, not correctness.** They are printed in site footers and
+now on tax invoices, so a transposed digit was published. ABNs are validated by the ABR's
+check digits on entry, and a stored one that fails is not printed in the footer or on a
+receipt — ABNs saved before the check existed were never verified. Two duplicate
+formatters became one.
+
+**"Includes GST" was shown on every price**, including for businesses that are not
+registered and do not charge it — a false statement on a live price.
+
+**Long item names were cut mid-word on the receipt.** They wrap now; a truncated
+description can stop saying what was sold.
 
 ### Still blocked on credentials
 `ANTHROPIC_API_KEY` — **A-03 has still never made a call**, and the digest now reports

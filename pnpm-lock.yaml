@@ -250,6 +250,9 @@ importers:
       '@awning/integrations':
         specifier: workspace:*
         version: link:../integrations
+      '@awning/spec':
+        specifier: workspace:*
+        version: link:../spec
       stripe:
         specifier: ^17.5.0
         version: 17.7.0

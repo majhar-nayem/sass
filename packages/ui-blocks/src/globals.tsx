@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import type { BusinessFacts, WebsiteSpec } from '@awning/spec'
-import { telHref, whatsappHref } from '@awning/spec'
+import { formatAbn, isValidAbn, telHref, whatsappHref } from '@awning/spec'
 import { Button } from './primitives.js'
 
 /* ------------------------------------------------------------- announcement */
@@ -245,16 +245,13 @@ export function Footer({
         </span>
         {/* Displaying the ABN is standard practice for an Australian business and is
             only ever the number the owner entered — never one the model invented. */}
-        {site.showAbnInFooter && business.abn && <span>ABN {formatAbn(business.abn)}</span>}
+        {/* Only a number that passes the ABN check is published. ABNs stored before
+            the check existed were never verified, and a wrong one here is a wrong
+            number shown to every visitor — the receipt applies the same rule. */}
+        {site.showAbnInFooter && isValidAbn(business.abn) && <span>ABN {formatAbn(business.abn!)}</span>}
       </div>
     </footer>
   )
-}
-
-/** 51824753556 -> 51 824 753 556, the way the ABR prints it. */
-function formatAbn(abn: string): string {
-  const d = abn.replace(/\D/g, '')
-  return d.length === 11 ? `${d.slice(0, 2)} ${d.slice(2, 5)} ${d.slice(5, 8)} ${d.slice(8)}` : abn
 }
 
 /* ------------------------------------------------------------ mobile CTAs */

@@ -127,9 +127,10 @@ Stripe Checkout, not Elements. You get Apple Pay, Google Pay, Link, **Afterpay**
 
 ### GST handling — deliberately simple
 - All prices stored and displayed **GST-inclusive**. Never show ex-GST to a consumer.
-- `gst_cents` on the order = `round(total × 1/11)` for standard-rated items, computed per line so GST-free lines are excluded.
+- `gst_cents` on the order = the ATO's **total invoice rule**: add the GST-inclusive price of every standard-rated line, take one eleventh, round once. GST-free lines are left out of the sum. *(Corrected in M-08 — this originally said "computed per line", and the code rounded each line then added them, which drifts by up to half a cent per line. One `gstIncludedCents` is shared by the cart, the order and the receipt.)*
 - `products.gst_free` handles the genuine cases. This matters immediately for Persona B: **fresh, unprocessed meat is GST-free; a cooked or marinated product is not.** A butcher's Christmas catalogue contains both.
-- If the tenant isn't GST-registered (turnover < A$75k), `store_settings.abn_on_invoice` is null and receipts omit GST entirely.
+- If the tenant isn't GST-registered (turnover < A$75k), receipts omit GST entirely, and the product page says nothing about GST — "Includes GST" on an unregistered business's price would be false.
+- **The customer's email is the receipt.** It is headed *Tax invoice* only when every ATO requirement is met (seller, valid ABN, date, items, GST, which items are taxable, and the buyer from $1,000); otherwise it is a *Receipt* and the owner is told what is missing. The ABN comes from `organizations.abn`, now checked by its ABR check digits; `store_settings.abn_on_invoice` is never written and should be dropped.
 - **No tax automation.** Do not build it, do not enable Stripe Tax on Connect for MVP.
 
 ### Shipping — four options, no carrier APIs

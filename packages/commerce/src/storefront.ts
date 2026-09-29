@@ -74,6 +74,12 @@ export interface StorefrontProduct {
   available: boolean
   /** Only when stock is tracked and low enough to be worth saying. */
   lowStock: number | null
+  /**
+   * What to say about GST beside the price, or nothing. A business that is not
+   * registered does not charge GST, so "Includes GST" on its price would be false —
+   * and so would "GST free", which implies GST applies to other things it sells.
+   */
+  gstNote: 'Includes GST' | 'GST free' | null
 }
 
 const productSelect = {
@@ -86,6 +92,7 @@ const productSelect = {
     take: 1,
     select: { site_assets: { select: { public_url: true } } },
   },
+  sites: { select: { organizations: { select: { gst_registered: true } } } },
 } as const
 
 type ProductRow = {
@@ -94,6 +101,7 @@ type ProductRow = {
   inventory_qty: number; allow_backorder: boolean
   product_categories: { name: string } | null
   product_images: Array<{ site_assets: { public_url: string } }>
+  sites: { organizations: { gst_registered: boolean } }
 }
 
 function toStorefront(p: ProductRow): StorefrontProduct {
@@ -110,6 +118,7 @@ function toStorefront(p: ProductRow): StorefrontProduct {
     imageUrl: p.product_images[0]?.site_assets.public_url ?? null,
     available: !tracked || p.inventory_qty > 0,
     lowStock: tracked && p.inventory_qty > 0 && p.inventory_qty <= 5 ? p.inventory_qty : null,
+    gstNote: p.sites.organizations.gst_registered ? (p.gst_free ? 'GST free' : 'Includes GST') : null,
   }
 }
 

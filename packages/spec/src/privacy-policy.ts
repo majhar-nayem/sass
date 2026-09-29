@@ -1,3 +1,4 @@
+import { formatAbn } from './abn.js'
 import { overseasRecipients } from './subprocessors.js'
 
 /**
@@ -156,9 +157,4 @@ export function generatePrivacyPolicy(input: PolicyInputs): string {
   )
 
   return sections.join('\n')
-}
-
-function formatAbn(abn: string): string {
-  const d = abn.replace(/\D/g, '')
-  return d.length === 11 ? `${d.slice(0, 2)} ${d.slice(2, 5)} ${d.slice(5, 8)} ${d.slice(8)}` : abn
 }

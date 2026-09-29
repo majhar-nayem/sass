@@ -58,8 +58,9 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               </span>
             )}
           </p>
-          {/* GST-inclusive is the only price an Australian consumer should see. */}
-          <p className="mt-1 text-sm opacity-70">{p.gstFree ? 'GST free' : 'Includes GST'}</p>
+          {/* GST-inclusive is the only price an Australian consumer should see — and
+              only a business that charges GST may say its price includes it. */}
+          {p.gstNote && <p className="mt-1 text-sm opacity-70">{p.gstNote}</p>}
           {p.lowStock !== null && <p className="mt-3 text-sm font-semibold">Only {p.lowStock} left</p>}
           {p.description && <p className="mt-6 leading-relaxed whitespace-pre-line">{p.description}</p>}
           {r.shop.status.acceptsOrders ? (
