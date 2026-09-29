@@ -57,8 +57,8 @@ describe('which sites have a shop', () => {
   it('accepts orders once they are', async () => {
     await rawPrisma.store_settings.upsert({
       where: { site_id: siteId },
-      create: { site_id: siteId, stripe_onboarded_at: new Date() },
-      update: { stripe_onboarded_at: new Date() },
+      create: { site_id: siteId, stripe_onboarded_at: new Date(), pickup_enabled: true, pickup_address: { text: '12 Main St' } },
+      update: { stripe_onboarded_at: new Date(), pickup_enabled: true, pickup_address: { text: '12 Main St' } },
     })
     expect((await shopStatus(rawPrisma, siteId)).acceptsOrders).toBe(true)
     await rawPrisma.store_settings.update({ where: { site_id: siteId }, data: { stripe_onboarded_at: null } })
@@ -69,6 +69,18 @@ describe('which sites have a shop', () => {
    * row exists" as "this site takes orders", and the payments screen creates that row
    * just by being opened.
    */
+  // M-09. Payments ready but no pickup, delivery or post: money for an order nobody can
+  // get to the customer.
+  it('does not accept orders with no way to get them to the customer', async () => {
+    await rawPrisma.store_settings.upsert({
+      where: { site_id: siteId },
+      create: { site_id: siteId, stripe_onboarded_at: new Date() },
+      update: { stripe_onboarded_at: new Date(), pickup_enabled: false },
+    })
+    expect(await shopStatus(rawPrisma, siteId)).toMatchObject({ acceptsOrders: false, reason: 'no-fulfilment' })
+    await rawPrisma.store_settings.update({ where: { site_id: siteId }, data: { stripe_onboarded_at: null } })
+  })
+
   it('a settings row on its own does not mean the site takes orders', async () => {
     await rawPrisma.store_settings.upsert({
       where: { site_id: siteId }, create: { site_id: siteId }, update: { stripe_onboarded_at: null },

@@ -32,7 +32,11 @@ beforeAll(async () => {
     data: { id: siteId, org_id: orgId, name: 'Daves Meats', slug: `dm-${siteId.slice(0, 8)}`, status: 'published' },
   })
   await rawPrisma.store_settings.create({
-    data: { site_id: siteId, stripe_account_id: ACCT, stripe_onboarded_at: new Date() },
+    data: {
+      site_id: siteId, stripe_account_id: ACCT, stripe_onboarded_at: new Date(),
+      // M-09: a shop needs a way to get an order to someone before it can take one.
+      pickup_enabled: true, pickup_address: { text: '12 Main St, Salisbury SA 5108' },
+    },
   })
   await rawPrisma.products.createMany({
     data: [
@@ -51,10 +55,11 @@ beforeEach(() => {
 afterEach(() => __setCheckoutStripe(null))
 
 const cart = (lines: Array<{ productId: string; qty: number }>) => ({ siteId, issuedAt: 0, lines })
+const PICKUP = { optionId: 'pickup' }
 
 describe('where the money goes', () => {
   it('creates the session ON THE TENANT’S ACCOUNT', async () => {
-    const r = await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 1 }]), ORIGIN)
+    const r = await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 1 }]), ORIGIN, PICKUP)
     expect(r.ok).toBe(true)
     expect(create).toHaveBeenCalledOnce()
     // The acceptance criterion, as an assertion.
@@ -63,7 +68,7 @@ describe('where the money goes', () => {
 
   // Any of these would route money through, or skim it into, the platform balance.
   it('takes no application fee and makes no transfer — a direct charge, nothing else', async () => {
-    await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 1 }]), ORIGIN)
+    await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 1 }]), ORIGIN, PICKUP)
     const params = create.mock.calls[0]![0] as Stripe.Checkout.SessionCreateParams
     const flat = JSON.stringify(params)
     for (const k of ['application_fee_amount', 'application_fee_percent', 'transfer_data', 'on_behalf_of', 'transfer_group'])
@@ -74,20 +79,20 @@ describe('where the money goes', () => {
 describe('what is charged', () => {
   it('charges today’s database price, not what the cart page showed', async () => {
     await rawPrisma.products.update({ where: { id: ham }, data: { price_cents: 7200 } })
-    await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 2 }]), ORIGIN)
+    await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 2 }]), ORIGIN, PICKUP)
     const line = (create.mock.calls[0]![0] as Stripe.Checkout.SessionCreateParams).line_items![0]!
     expect(line).toMatchObject({ quantity: 2, price_data: { currency: 'aud', unit_amount: 7200 } })
     await rawPrisma.products.update({ where: { id: ham }, data: { price_cents: 6800 } })
   })
 
   it('carries our product id on each line, for M-07 to decrement stock', async () => {
-    await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: beef, qty: 1 }]), ORIGIN)
+    await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: beef, qty: 1 }]), ORIGIN, PICKUP)
     const line = (create.mock.calls[0]![0] as Stripe.Checkout.SessionCreateParams).line_items![0]!
     expect(line.price_data!.product_data!.metadata).toEqual({ product_id: beef, gst_free: '1' })
   })
 
   it('pins the session to this site', async () => {
-    await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 1 }]), ORIGIN)
+    await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 1 }]), ORIGIN, PICKUP)
     expect((create.mock.calls[0]![0] as Stripe.Checkout.SessionCreateParams).metadata).toMatchObject({ site_id: siteId })
   })
 })
@@ -99,12 +104,12 @@ describe('what is charged', () => {
  */
 describe('Afterpay', () => {
   it('does not hard-code payment methods, so the tenant’s own Stripe settings apply', async () => {
-    await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 1 }]), ORIGIN)
+    await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 1 }]), ORIGIN, PICKUP)
     expect(create.mock.calls[0]![0]).not.toHaveProperty('payment_method_types')
   })
 
   it('meets Afterpay’s conditions: a one-time payment in AUD', async () => {
-    await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 1 }]), ORIGIN)
+    await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 1 }]), ORIGIN, PICKUP)
     const p = create.mock.calls[0]![0] as Stripe.Checkout.SessionCreateParams
     expect(p.mode).toBe('payment')
     expect(p.line_items!.every((l) => l.price_data?.currency === 'aud' && !l.price_data?.recurring)).toBe(true)
@@ -113,20 +118,20 @@ describe('Afterpay', () => {
 
 describe('when checkout is refused', () => {
   it('an empty cart', async () => {
-    expect(await createStorefrontCheckout(rawPrisma, siteId, cart([]), ORIGIN)).toEqual({ ok: false, refusal: 'empty-cart' })
+    expect(await createStorefrontCheckout(rawPrisma, siteId, cart([]), ORIGIN, PICKUP)).toEqual({ ok: false, refusal: 'empty-cart' })
     expect(create).not.toHaveBeenCalled()
   })
 
   it('a total below Stripe’s minimum', async () => {
     expect(20).toBeLessThan(MIN_CHARGE_CENTS)
-    const r = await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: cheap, qty: 1 }]), ORIGIN)
+    const r = await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: cheap, qty: 1 }]), ORIGIN, PICKUP)
     expect(r).toEqual({ ok: false, refusal: 'below-minimum' })
   })
 
   // charges_enabled is the only thing that sets stripe_onboarded_at (M-03).
   it('a shop whose payments are not ready', async () => {
     await rawPrisma.store_settings.update({ where: { site_id: siteId }, data: { stripe_onboarded_at: null } })
-    const r = await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 1 }]), ORIGIN)
+    const r = await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 1 }]), ORIGIN, PICKUP)
     expect(r).toEqual({ ok: false, refusal: 'not-accepting-orders' })
     expect(create).not.toHaveBeenCalled()
     await rawPrisma.store_settings.update({ where: { site_id: siteId }, data: { stripe_onboarded_at: new Date() } })
@@ -174,7 +179,10 @@ describe('coming back from Stripe', () => {
 describe('the parameters in isolation', () => {
   it('returns the shopper to the site they came from', async () => {
     const resolved = await resolveCart(rawPrisma, siteId, cart([{ productId: ham, qty: 1 }]))
-    const { params } = buildCheckoutParams(resolved, { siteId, accountId: ACCT, origin: ORIGIN, businessName: 'x' })
+    const { params } = buildCheckoutParams(resolved, {
+      siteId, accountId: ACCT, origin: ORIGIN, businessName: 'x',
+      fulfilment: { ok: true, method: 'pickup', label: 'Pick up', priceCents: 0, address: null, detail: null },
+    })
     expect(params.success_url).toBe(`${ORIGIN}/api/checkout/return?session_id={CHECKOUT_SESSION_ID}`)
     expect(params.cancel_url).toBe(`${ORIGIN}/cart`)
   })
@@ -198,5 +206,48 @@ describe('the checkout key', () => {
   })
   it('tolerates a test secret key outside production', () => {
     expect(checkoutKeyProblem({ NODE_ENV: 'development', STRIPE_CHECKOUT_KEY: 'sk_test_x' } as NodeJS.ProcessEnv)).toBeNull()
+  })
+})
+
+/** M-09. Delivery is chosen on our side and checked BEFORE anyone pays. */
+describe('getting the order to the customer', () => {
+  const addr = { name: 'Jane Citizen', line1: '4 Oak Ave', suburb: 'Salisbury', state: 'SA', postcode: '5108' }
+
+  beforeAll(async () => {
+    await rawPrisma.store_settings.update({
+      where: { site_id: siteId },
+      data: { local_delivery_enabled: true, local_delivery_postcodes: ['5108', '5109'], local_delivery_fee_cents: 800 },
+    })
+  })
+
+  it('pickup adds no delivery line and no address', async () => {
+    await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 1 }]), ORIGIN, PICKUP)
+    const p = create.mock.calls[0]![0] as Stripe.Checkout.SessionCreateParams
+    expect(p.line_items).toHaveLength(1)
+    expect(p.metadata).toMatchObject({ fulfilment: 'pickup' })
+    expect(p.payment_intent_data).not.toHaveProperty('shipping')
+  })
+
+  it('delivery adds the fee as its own, marked line, and hands Stripe the address', async () => {
+    await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 1 }]), ORIGIN, { optionId: 'delivery', address: addr })
+    const p = create.mock.calls[0]![0] as Stripe.Checkout.SessionCreateParams
+    const fee = p.line_items!.find((l) => l.price_data?.product_data?.metadata?.kind === 'fulfilment')!
+    expect(fee.price_data!.unit_amount).toBe(800)
+    expect(p.payment_intent_data!.shipping).toMatchObject({ address: { postal_code: '5108', country: 'AU' } })
+    expect(JSON.parse(p.metadata!.ship_to as string)).toMatchObject({ postcode: '5108' })
+  })
+
+  // Checked before payment. After payment, "we don't deliver there" is a refund.
+  it('refuses a postcode outside the area without creating a session', async () => {
+    const r = await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 1 }]), ORIGIN, {
+      optionId: 'delivery', address: { ...addr, postcode: '5000' },
+    })
+    expect(r).toMatchObject({ ok: false, refusal: 'fulfilment' })
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('refuses a checkout that has not chosen how to get the order', async () => {
+    const r = await createStorefrontCheckout(rawPrisma, siteId, cart([{ productId: ham, qty: 1 }]), ORIGIN)
+    expect(r).toMatchObject({ ok: false, refusal: 'fulfilment' })
   })
 })

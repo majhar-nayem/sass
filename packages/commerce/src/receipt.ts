@@ -1,5 +1,5 @@
 import { formatAbn, isValidAbn } from '@awning/spec'
-import { gstIncludedCents } from './gst.js'
+import { gstIncludedCents, taxableDeliveryCents } from './gst.js'
 
 /**
  * M-08 -- the receipt, and when it may call itself a tax invoice.
@@ -34,6 +34,17 @@ export interface ReceiptInput {
   lines: Array<{ title: string; qty: number; unitCents: number; lineCents: number; gstFree: boolean }>
   totalCents: number
   buyer?: { name?: string | null; email?: string | null }
+  /** M-09. A delivery or postage fee, which takes the GST character of the goods. */
+  delivery?: { label: string; cents: number } | null
+}
+
+export interface ReceiptDelivery {
+  label: string
+  cents: number
+  /** true / false when it follows goods that are all one way; 'part' on a mixed order. */
+  taxable: boolean | 'part' | null
+  /** The apportioned taxable part, shown when `taxable` is 'part'. */
+  taxableCents: number
 }
 
 export interface ReceiptLine {
@@ -53,6 +64,7 @@ export interface Receipt {
   issuedOn: string
   reference: string
   lines: ReceiptLine[]
+  delivery: ReceiptDelivery | null
   totalCents: number
   /** Zero for a seller that is not registered, who must not show GST at all. */
   gstCents: number
@@ -81,7 +93,8 @@ export function buildReceipt(input: ReceiptInput): Receipt {
     taxable: registered ? !l.gstFree : null,
   }))
 
-  const gstCents = gstIncludedCents(input.lines, registered)
+  const deliveryCents = input.delivery?.cents ?? 0
+  const gstCents = gstIncludedCents(input.lines, registered, deliveryCents)
   const anyTaxable = input.lines.some((l) => !l.gstFree)
   const anyFree = input.lines.some((l) => l.gstFree)
   const mixed = registered && anyTaxable && anyFree
@@ -109,6 +122,17 @@ export function buildReceipt(input: ReceiptInput): Receipt {
       : `Total price includes GST of ${money(gstCents)}`
   }
 
+  let delivery: ReceiptDelivery | null = null
+  if (input.delivery && input.delivery.cents > 0) {
+    const part = taxableDeliveryCents(input.lines, input.delivery.cents)
+    delivery = {
+      label: input.delivery.label,
+      cents: input.delivery.cents,
+      taxable: !registered ? null : !anyTaxable ? false : !anyFree ? true : 'part',
+      taxableCents: registered ? part : 0,
+    }
+  }
+
   const legal = seller.legalName?.trim()
   return {
     kind,
@@ -121,6 +145,7 @@ export function buildReceipt(input: ReceiptInput): Receipt {
     }),
     reference: `Order #${input.orderNumber}`,
     lines,
+    delivery,
     totalCents: input.totalCents,
     gstCents,
     gstStatement,
@@ -151,6 +176,14 @@ export function renderReceiptText(r: Receipt): string {
       out.push(label)
       out.push(row('', amount) + mark)
     } else out.push(row(label, amount) + mark)
+  }
+  if (r.delivery) {
+    const d = r.delivery
+    // On a mixed order the fee is split by the goods it delivers, so the invoice says
+    // how much of it carries GST — "the extent to which each sale is taxable".
+    const mark =
+      d.taxable === null ? '' : d.taxable === 'part' ? `  ${money(d.taxableCents)} taxable` : d.taxable ? '  incl. GST' : '  GST-free'
+    out.push(row(d.label, money(d.cents)) + mark)
   }
   out.push('', row('Total', money(r.totalCents)))
   if (r.gstStatement) out.push(r.gstStatement)

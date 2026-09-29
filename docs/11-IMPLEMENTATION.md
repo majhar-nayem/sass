@@ -18,10 +18,15 @@ by Friday 25 September — see `01-ROADMAP.md` §0.
 ## Progress — 26 September 2026
 
 **Week 8 closed and merged (PR #1). Track A has started: M-03 is done.**
+> **Correction (M-09): there is no sign-up or sign-in screen.** `apps/app/src/app/sign-in`
+> is a placeholder that says the form "lands with P-12" — and no P-12 exists in any plan.
+> The auth API works, and every end-to-end check so far reached the dashboard by calling
+> it directly. A real business cannot create an account or sign in. See below.
+
 Sign up → trial → seven questions → a website → edit by typing → choose a plan →
 publish → custom domain → a visitor enquires → the tradie rings them back. A failed
 payment runs a schedule. An operator can see what a customer sees, and it is audited.
-**716 tests**, lint clean, both apps build, and both ship as a Docker image that has
+**763 tests**, lint clean, both apps build, and both ship as a Docker image that has
 been run and proven to serve a real tenant website.
 
 ```bash
@@ -465,6 +470,53 @@ registered and do not charge it — a false statement on a live price.
 
 **Long item names were cut mid-word on the receipt.** They wrap now; a truncated
 description can stop saying what was sold.
+
+### No way in: the missing sign-up and sign-in screens
+
+Found while verifying M-09, which needed a signed-in butcher to time the fulfilment screen.
+`/sign-in` is a placeholder pointing at "P-12", which does not exist in `01-ROADMAP.md`,
+this board, or anywhere else. The Better Auth API behind it is live and tested; the form
+is not built. Every dashboard screen — onboarding, the editor, payments, products,
+fulfilment — is unreachable for a real person.
+
+The O-02 operator console has the matching gap: impersonation creates a session row, but
+nothing hands its token to a browser, so an operator cannot actually use it.
+
+This blocks the one goal that matters — ten paying businesses — more than any remaining
+Track A ticket, and it is small. **Recommend doing it before M-10.**
+
+### M-09 — how the order gets to the customer
+
+Pickup, local delivery to a postcode list, and one flat-rate postage option with free-over.
+**Verified against the acceptance criterion by driving the real screen in the browser**:
+from first seeing the fulfilment screen to "Saved", pickup-only took three actions — tick,
+type the street in front of the pre-filled suburb, save — and 17 seconds of wall clock,
+most of it tool latency. The refusal path was checked the same way.
+
+**A shop could take payment with no way to deliver.** M-07 recorded every order as
+"pickup" regardless. "Accepts orders" now requires at least one configured method, and
+the screen refuses to save a half-configured one (pickup with no address, delivery with no
+postcodes, everything off).
+
+**Delivery GST follows the goods — read from the ATO, not assumed.** GSTR 2001/8,
+paragraph 77: delivering GST-free food to the door is "a supply of delivered GST-free
+goods" with no GST on the delivery. So fresh meat's delivery is GST-free, a ham's is
+taxable, and a mixed order's fee is apportioned by value (paragraph 98). The obvious
+shortcut, delivery always taxable, over-reports GST for every butcher who delivers.
+Verified over HTTP: the same $100 cart shows $5.45 GST for pickup and $6.00 for delivery.
+
+**The address is collected and checked by us, before payment**, and handed to Stripe via
+`payment_intent_data.shipping`. Stripe's docs never confirm `shipping_options` without
+Stripe's own address collection, and the postcode must be checked against the delivery area
+before anyone pays — after payment, "we don't deliver there" is a refund.
+
+### Another dunning defect, one level up
+
+The O-03 fix isolated each org's step, but the snapshot ran before it and could throw:
+it loaded organisations as a relation, which Prisma fetches with a second query, so an org
+deleted in between made the snapshot fail with "required to return data, got null" and
+stopped dunning for everyone. Captured from a failing run this time, fixed, committed
+separately. 12 uncached api runs afterwards, no failures.
 
 ### Still blocked on credentials
 `ANTHROPIC_API_KEY` — **A-03 has still never made a call**, and the digest now reports

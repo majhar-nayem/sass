@@ -1,6 +1,7 @@
 import { withoutOrgContext, type PrismaTx } from '@awning/db'
 import { MAX_QTY, normaliseCart, type Cart } from './cart-cookie.js'
 import { gstIncludedCents } from './gst.js'
+import { hasAnyFulfilment, type FulfilmentSettings } from './fulfilment.js'
 
 /**
  * M-05 -- what a visitor to a tenant's site can see and buy.
@@ -16,7 +17,42 @@ export interface ShopStatus {
   enabled: boolean
   /** A visitor could complete an order: payments work and there is something to buy. */
   acceptsOrders: boolean
-  reason: 'ok' | 'no-plan' | 'not-published' | 'no-products' | 'payments-not-ready'
+  reason: 'ok' | 'no-plan' | 'not-published' | 'no-products' | 'payments-not-ready' | 'no-fulfilment'
+}
+
+/**
+ * The shop's pickup, delivery and post settings.
+ *
+ * `pickup_address` is JSON with a single `text` field: an address a butcher types, shown
+ * to the customer as typed. Structured address fields buy nothing here and cost a form.
+ */
+export async function loadFulfilment(db: PrismaTx, siteId: string): Promise<FulfilmentSettings> {
+  const [st, rates] = await Promise.all([
+    db.store_settings.findUnique({
+      where: { site_id: siteId },
+      select: {
+        pickup_enabled: true, pickup_address: true, pickup_instructions: true,
+        local_delivery_enabled: true, local_delivery_postcodes: true,
+        local_delivery_fee_cents: true, local_delivery_min_cents: true,
+      },
+    }),
+    db.shipping_rates.findMany({
+      where: { site_id: siteId, is_active: true, method: 'shipping' },
+      orderBy: [{ position: 'asc' }, { price_cents: 'asc' }],
+      select: { id: true, name: true, price_cents: true, free_over_cents: true, applies_to_states: true },
+    }),
+  ])
+  const addr = st?.pickup_address as { text?: string } | null | undefined
+  return {
+    pickup: { enabled: st?.pickup_enabled ?? false, address: addr?.text ?? null, instructions: st?.pickup_instructions ?? null },
+    delivery: {
+      enabled: st?.local_delivery_enabled ?? false,
+      postcodes: st?.local_delivery_postcodes ?? [],
+      feeCents: st?.local_delivery_fee_cents ?? 0,
+      minCents: st?.local_delivery_min_cents ?? null,
+    },
+    post: rates.map((r) => ({ id: r.id, name: r.name, priceCents: r.price_cents, freeOverCents: r.free_over_cents, states: r.applies_to_states })),
+  }
 }
 
 /**
@@ -52,11 +88,13 @@ export async function shopStatus(db: PrismaTx, siteId: string): Promise<ShopStat
 
   // Only M-03's charges_enabled check ever writes this, so it is safe to trust.
   const paymentsReady = !!site.store_settings?.stripe_onboarded_at
-  return {
-    enabled: true,
-    acceptsOrders: paymentsReady,
-    reason: paymentsReady ? 'ok' : 'payments-not-ready',
-  }
+  if (!paymentsReady) return { enabled: true, acceptsOrders: false, reason: 'payments-not-ready' }
+
+  // M-09. Taking money for an order nobody has said how to deliver — M-07 was recording
+  // every order as "pickup" whether or not the shop had anywhere to pick up from.
+  if (!hasAnyFulfilment(await loadFulfilment(db, siteId)))
+    return { enabled: true, acceptsOrders: false, reason: 'no-fulfilment' }
+  return { enabled: true, acceptsOrders: true, reason: 'ok' }
 }
 
 export interface StorefrontProduct {

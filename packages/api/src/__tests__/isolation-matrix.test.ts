@@ -152,6 +152,19 @@ const COVERAGE: Record<string, Strategy> = {
     mutates: true,
   },
   'store.disconnectStripe': { kind: 'isolated', input: (b) => ({ siteId: b.siteId }), mutates: true },
+  // M-09. Reading another tenant's pickup address is a privacy leak; writing it sends
+  // their customers to the wrong door.
+  'store.fulfilment': { kind: 'isolated', input: (b) => ({ siteId: b.siteId }) },
+  'store.saveFulfilment': {
+    kind: 'isolated',
+    input: (b) => ({
+      siteId: b.siteId,
+      pickup: { enabled: true, address: '1 Probe St, Nowhere SA 5000', instructions: '' },
+      delivery: { enabled: false, postcodes: '', feeCents: 0, minCents: null },
+      post: { enabled: false, name: 'Standard post', priceCents: 0, freeOverCents: null },
+    }),
+    mutates: true,
+  },
   // M-04. A tenant who reaches another tenant's products can read their whole
   // catalogue and their margins, and `import` can overwrite it.
   'product.list': { kind: 'isolated', input: (b) => ({ siteId: b.siteId }) },

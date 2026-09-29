@@ -39,6 +39,11 @@ export interface SessionSnapshot {
   subtotalCents: number
   totalCents: number
   lines: PaidLine[]
+  /** M-09. How the customer is getting it, as chosen and checked before payment. */
+  fulfilment: 'pickup' | 'local_delivery' | 'shipping'
+  fulfilmentLabel: string | null
+  shipTo: Record<string, string | null> | null
+  deliveryCents: number
 }
 
 /**
@@ -63,6 +68,23 @@ export function snapshotFrom(
   session: Stripe.Checkout.Session,
   items: Stripe.LineItem[],
 ): SessionSnapshot {
+  const metaOf = (li: Stripe.LineItem) => {
+    const product = li.price?.product
+    return product && typeof product === 'object' && !('deleted' in product && product.deleted) ? product.metadata : {}
+  }
+  // The delivery fee travels as its own line (see M-06/M-09). It is not goods: it has no
+  // stock, and its GST follows the goods it delivers.
+  const isFee = (li: Stripe.LineItem) => metaOf(li)?.kind === 'fulfilment'
+  const goods = items.filter((li) => !isFee(li))
+  const deliveryCents = items.filter(isFee).reduce((n, li) => n + (li.amount_total ?? 0), 0)
+  const method = session.metadata?.fulfilment
+  let shipTo: Record<string, string | null> | null = null
+  try {
+    shipTo = session.metadata?.ship_to ? JSON.parse(session.metadata.ship_to) : null
+  } catch {
+    shipTo = null
+  }
+
   return {
     sessionId: session.id,
     paymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : (session.payment_intent?.id ?? null),
@@ -78,9 +100,12 @@ export function snapshotFrom(
     phone: session.customer_details?.phone ?? null,
     subtotalCents: session.amount_subtotal ?? 0,
     totalCents: session.amount_total ?? 0,
-    lines: items.map((li) => {
-      const product = li.price?.product
-      const meta = product && typeof product === 'object' && !('deleted' in product && product.deleted) ? product.metadata : {}
+    fulfilment: method === 'local_delivery' || method === 'shipping' ? method : 'pickup',
+    fulfilmentLabel: (session.metadata?.fulfilment_label as string | undefined) ?? null,
+    shipTo,
+    deliveryCents,
+    lines: goods.map((li) => {
+      const meta = metaOf(li)
       const qty = li.quantity ?? 1
       return {
         productId: meta?.product_id ?? null,
@@ -166,7 +191,8 @@ export async function recordOrder(
     where: { id: siteId },
     select: { organizations: { select: { gst_registered: true } } },
   })
-  const gstCents = gstIncludedCents(snap.lines, org?.organizations.gst_registered ?? false)
+  // Delivery apportioned by the goods it delivers (GSTR 2001/8 — see commerce/gst).
+  const gstCents = gstIncludedCents(snap.lines, org?.organizations.gst_registered ?? false, snap.deliveryCents)
 
   const last = await db.orders.aggregate({ where: { site_id: siteId }, _max: { order_number: true } })
   const orderNumber = (last._max.order_number ?? 0) + 1
@@ -178,11 +204,14 @@ export async function recordOrder(
       site_id: siteId,
       order_number: orderNumber,
       status: want === 'paid' ? 'paid' : 'pending',
-      subtotal_cents: snap.subtotalCents,
+      // Goods only. The delivery fee is its own column so the receipt can show it.
+      subtotal_cents: snap.subtotalCents - snap.deliveryCents,
+      shipping_cents: snap.deliveryCents,
       total_cents: snap.totalCents,
       gst_cents: gstCents,
-      // Collection details arrive with M-09; until then the owner rings the customer.
-      fulfilment: 'pickup',
+      fulfilment: snap.fulfilment,
+      ship_to: (snap.shipTo ?? undefined) as never,
+      notes: snap.fulfilmentLabel,
       email: snap.email ?? '',
       phone: snap.phone,
       customer_name: snap.name,

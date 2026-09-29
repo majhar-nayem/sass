@@ -1,7 +1,8 @@
 import type Stripe from 'stripe'
 import type { PrismaTx } from '@awning/db'
 import { checkoutStripe } from '@awning/integrations/stripe-checkout'
-import { resolveCart, shopStatus, type ResolvedCart } from './storefront.js'
+import { loadFulfilment, resolveCart, shopStatus, type ResolvedCart } from './storefront.js'
+import { formatAddress, resolveFulfilment, type Address, type Resolved } from './fulfilment.js'
 import type { Cart } from './cart-cookie.js'
 
 /**
@@ -26,6 +27,7 @@ export type CheckoutRefusal =
   | 'empty-cart'
   | 'below-minimum'
   | 'no-account'
+  | 'fulfilment'
 
 export interface CheckoutContext {
   siteId: string
@@ -33,7 +35,11 @@ export interface CheckoutContext {
   /** The tenant host the shopper is on, so they come back to the same site. */
   origin: string
   businessName: string
+  fulfilment: Extract<Resolved, { ok: true }>
 }
+
+/** Marks the delivery line so M-07 can tell it from the goods. */
+export const FULFILMENT_LINE = 'fulfilment'
 
 /**
  * The parameters for the session, as a pure function of the resolved cart.
@@ -48,7 +54,8 @@ export function buildCheckoutParams(
   return {
     params: {
       mode: 'payment',
-      line_items: cart.lines.map((l) => ({
+      line_items: [
+        ...cart.lines.map((l) => ({
         quantity: l.qty,
         price_data: {
           currency: 'aud',
@@ -63,12 +70,41 @@ export function buildCheckoutParams(
           },
         },
       })),
+        // Delivery as its own line, not Stripe `shipping_options`: we collect and check
+        // the address ourselves — the postcode has to be in the delivery area BEFORE
+        // anyone pays — so Stripe's address form cannot be the source of truth.
+        ...(ctx.fulfilment.priceCents > 0
+          ? [
+              {
+                quantity: 1,
+                price_data: {
+                  currency: 'aud',
+                  unit_amount: ctx.fulfilment.priceCents,
+                  product_data: { name: ctx.fulfilment.label, metadata: { kind: FULFILMENT_LINE } },
+                },
+              },
+            ]
+          : []),
+      ],
       // No payment_method_types. Stripe's dynamic payment methods show whatever the
       // TENANT has switched on in their own Stripe dashboard — Afterpay included, when
       // the order is within Afterpay's limits. Hard-coding a list would override the
       // tenant's own settings on their own account.
-      metadata: { site_id: ctx.siteId, platform: 'awning' },
-      payment_intent_data: { metadata: { site_id: ctx.siteId } },
+      metadata: {
+        site_id: ctx.siteId,
+        platform: 'awning',
+        fulfilment: ctx.fulfilment.method,
+        fulfilment_label: ctx.fulfilment.label.slice(0, 200),
+        // The order needs the address and the webhook only carries the session. Metadata
+        // lives on the tenant's own Stripe account, beside the payment it belongs to.
+        ...(ctx.fulfilment.address ? { ship_to: JSON.stringify(ctx.fulfilment.address) } : {}),
+      },
+      payment_intent_data: {
+        metadata: { site_id: ctx.siteId },
+        // Given to Stripe directly (not collected by Checkout); Stripe's Afterpay guide
+        // notes that shipping details improve acceptance.
+        ...(ctx.fulfilment.address ? { shipping: toStripeShipping(ctx.fulfilment.address) } : {}),
+      },
       // A butcher rings about pickup. The number goes into THEIR Stripe account, and
       // the privacy policy already says orders collect contact details.
       phone_number_collection: { enabled: true },
@@ -83,6 +119,15 @@ export function buildCheckoutParams(
   }
 }
 
+function toStripeShipping(a: Address) {
+  return {
+    name: a.name,
+    address: { line1: a.line1, ...(a.line2 ? { line2: a.line2 } : {}), city: a.suburb, state: a.state, postal_code: a.postcode, country: 'AU' },
+  }
+}
+
+export { formatAddress }
+
 /**
  * Creates a Checkout Session for this visitor's cart, or says why not.
  *
@@ -94,7 +139,8 @@ export async function createStorefrontCheckout(
   siteId: string,
   cart: Cart,
   origin: string,
-): Promise<{ ok: true; url: string; sessionId: string } | { ok: false; refusal: CheckoutRefusal }> {
+  choice: { optionId: string; address?: Partial<Address> | null } = { optionId: '' },
+): Promise<{ ok: true; url: string; sessionId: string } | { ok: false; refusal: CheckoutRefusal; message?: string }> {
   const status = await shopStatus(db, siteId)
   if (!status.enabled) return { ok: false, refusal: 'no-shop' }
   if (!status.acceptsOrders) return { ok: false, refusal: 'not-accepting-orders' }
@@ -109,11 +155,15 @@ export async function createStorefrontCheckout(
   if (resolved.lines.length === 0) return { ok: false, refusal: 'empty-cart' }
   if (resolved.subtotalCents < MIN_CHARGE_CENTS) return { ok: false, refusal: 'below-minimum' }
 
+  const fulfilment = resolveFulfilment(await loadFulfilment(db, siteId), resolved.subtotalCents, choice)
+  if (!fulfilment.ok) return { ok: false, refusal: 'fulfilment', message: fulfilment.reason }
+
   const { params, options } = buildCheckoutParams(resolved, {
     siteId,
     accountId: settings.stripe_account_id,
     origin,
     businessName: settings.sites.name,
+    fulfilment,
   })
   const session = await checkoutStripe().checkout.sessions.create(params, options)
   if (!session.url) throw new Error('Stripe returned a checkout session with no URL.')

@@ -10,7 +10,21 @@ interface Line {
   lineCents: number
   cappedFrom: number | null
 }
+interface Option {
+  id: string
+  method: 'pickup' | 'local_delivery' | 'shipping'
+  label: string
+  priceCents: number
+  needsAddress: boolean
+  unavailable: string | null
+  detail: string | null
+  orderTotalCents: number
+  orderGstCents: number
+}
+const STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA']
+
 interface CartState {
+  fulfilment: Option[]
   lines: Line[]
   unavailable: Array<{ productId: string; reason: string }>
   itemCount: number
@@ -35,12 +49,18 @@ export function CartView() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [paying, setPaying] = useState(false)
+  const [optionId, setOptionId] = useState<string | null>(null)
+  const [addr, setAddr] = useState({ name: '', line1: '', line2: '', suburb: '', state: 'SA', postcode: '' })
 
   async function checkout() {
     setPaying(true)
     setError(null)
     try {
-      const r = await fetch('/api/checkout', { method: 'POST' })
+      const r = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ optionId, address: chosen?.needsAddress ? addr : null }),
+      })
       const body = await r.json()
       if (!r.ok || !body.url) throw new Error(body.error ?? 'We could not start checkout.')
       // To Stripe, on the business's own account. Nothing is paid until Stripe says so.
@@ -73,6 +93,13 @@ export function CartView() {
   }
 
   if (!cart) return error ? <p role="alert">{error}</p> : <p aria-busy="true">Loading your cart…</p>
+
+  // One option needs no choosing. Otherwise the shopper picks, and nothing is assumed.
+  const selectable = cart.fulfilment.filter((o) => !o.unavailable)
+  const chosenId = optionId ?? (selectable.length === 1 ? selectable[0]!.id : null)
+  const chosen = cart.fulfilment.find((o) => o.id === chosenId) ?? null
+  const shownTotal = chosen?.orderTotalCents ?? cart.subtotalCents
+  const shownGst = chosen?.orderGstCents ?? cart.gstCents
 
   return (
     <div>
@@ -142,16 +169,85 @@ export function CartView() {
             ))}
           </ul>
 
+          {cart.acceptsOrders && cart.fulfilment.length > 0 && (
+            <fieldset className="mt-8">
+              <legend className="font-semibold">How would you like to get it?</legend>
+              <div className="mt-3 space-y-2">
+                {cart.fulfilment.map((o) => (
+                  <label key={o.id} className={`flex items-start gap-3 rounded-[var(--radius)] border border-current/15 p-3 ${o.unavailable ? 'opacity-60' : ''}`}>
+                    <input
+                      type="radio"
+                      name="fulfilment"
+                      className="mt-1"
+                      disabled={!!o.unavailable}
+                      checked={chosenId === o.id}
+                      onChange={() => setOptionId(o.id)}
+                    />
+                    <span>
+                      <span className="font-medium">{o.label}</span>
+                      <span className="ml-2">{o.priceCents === 0 ? 'Free' : money(o.priceCents)}</span>
+                      {o.detail && <span className="block text-sm whitespace-pre-line opacity-75">{o.detail}</span>}
+                      {o.unavailable && <span className="block text-sm">{o.unavailable}</span>}
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              {chosen?.needsAddress && (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {(
+                    [
+                      ['name', 'Name', 'sm:col-span-2'],
+                      ['line1', 'Street address', 'sm:col-span-2'],
+                      ['line2', 'Unit, level (optional)', 'sm:col-span-2'],
+                      ['suburb', 'Suburb', ''],
+                      ['postcode', 'Postcode', ''],
+                    ] as const
+                  ).map(([key, label, span]) => (
+                    <label key={key} className={`block text-sm ${span}`}>
+                      {label}
+                      <input
+                        value={addr[key]}
+                        inputMode={key === 'postcode' ? 'numeric' : undefined}
+                        autoComplete={{ name: 'name', line1: 'address-line1', line2: 'address-line2', suburb: 'address-level2', postcode: 'postal-code' }[key]}
+                        onChange={(e) => setAddr({ ...addr, [key]: e.target.value })}
+                        className="mt-1 block w-full rounded-[var(--radius)] border border-current/20 bg-transparent px-3 py-2"
+                      />
+                    </label>
+                  ))}
+                  <label className="block text-sm">
+                    State
+                    <select
+                      value={addr.state}
+                      onChange={(e) => setAddr({ ...addr, state: e.target.value })}
+                      autoComplete="address-level1"
+                      className="mt-1 block w-full rounded-[var(--radius)] border border-current/20 bg-transparent px-3 py-2"
+                    >
+                      {STATES.map((s) => (
+                        <option key={s}>{s}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              )}
+            </fieldset>
+          )}
+
           <div className="mt-6 text-right">
-            <p className="text-xl font-semibold">Total {money(cart.subtotalCents)}</p>
+            {chosen && chosen.priceCents > 0 && (
+              <p className="text-sm opacity-80">
+                {chosen.label} {money(chosen.priceCents)}
+              </p>
+            )}
+            <p className="text-xl font-semibold">Total {money(shownTotal)}</p>
             {/* A business under the GST threshold must not show GST it does not charge. */}
-            {cart.gstRegistered && cart.gstCents > 0 && (
-              <p className="mt-1 text-sm opacity-70">Includes {money(cart.gstCents)} GST</p>
+            {cart.gstRegistered && shownGst > 0 && (
+              <p className="mt-1 text-sm opacity-70">Includes {money(shownGst)} GST</p>
             )}
             {cart.acceptsOrders ? (
               <button
                 type="button"
-                disabled={busy || paying}
+                disabled={busy || paying || !chosen}
                 onClick={() => void checkout()}
                 className="mt-5 min-h-12 rounded-[var(--radius)] bg-[var(--brand-primary)] px-8 font-semibold text-[var(--brand-on-primary)] disabled:opacity-50"
               >
