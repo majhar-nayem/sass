@@ -125,3 +125,36 @@ describe('the seller’s identity', () => {
     expect(r.seller).toBe("Dave's Meats (Smith Family Holdings Pty Ltd)")
   })
 })
+
+/** M-09. Delivery takes the GST character of what it delivers (GSTR 2001/8, para 77). */
+describe('a delivery fee on the receipt', () => {
+  const withDelivery = (lines: ReceiptInput['lines'], cents = 1000) =>
+    buildReceipt(base({ lines, delivery: { label: 'Local delivery', cents }, totalCents: lines.reduce((n, l) => n + l.lineCents, 0) + cents }))
+  const ham = { title: 'Christmas Ham', qty: 1, unitCents: 6000, lineCents: 6000, gstFree: false }
+  const beef = { title: 'Diced Beef', qty: 1, unitCents: 4000, lineCents: 4000, gstFree: true }
+
+  it('is GST-free when everything delivered is GST-free', () => {
+    const r = withDelivery([beef])
+    expect(r.delivery!.taxable).toBe(false)
+    expect(r.gstCents).toBe(0)
+    expect(renderReceiptText(r)).toMatch(/Local delivery.*GST-free/)
+  })
+
+  it('includes GST when everything delivered is taxable', () => {
+    const r = withDelivery([ham])
+    expect(r.delivery!.taxable).toBe(true)
+    expect(r.gstCents).toBe(Math.round(7000 / 11))
+  })
+
+  // $60 taxable + $40 GST-free: 60% of the $10 delivery carries GST.
+  it('on a mixed order, says how much of the fee is taxable', () => {
+    const r = withDelivery([ham, beef])
+    expect(r.delivery).toMatchObject({ taxable: 'part', taxableCents: 600 })
+    expect(r.gstCents).toBe(600) // (6000 + 600) / 11
+    expect(renderReceiptText(r)).toMatch(/Local delivery.*\$6\.00 taxable/)
+  })
+
+  it('pickup shows no delivery line at all', () => {
+    expect(buildReceipt(base()).delivery).toBeNull()
+  })
+})

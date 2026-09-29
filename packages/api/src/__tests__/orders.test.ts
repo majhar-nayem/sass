@@ -397,3 +397,50 @@ describe('telling people, when deliveries arrive together', () => {
     expect(to('owner@example.test')).toBe(0)
   })
 })
+
+/** M-09. How the customer is getting it, as chosen and checked before they paid. */
+describe('delivery and pickup on the order', () => {
+  const fee = (cents: number, label = 'Local delivery') =>
+    ({ description: label, quantity: 1, amount_total: cents, price: { unit_amount: cents, product: { metadata: { kind: 'fulfilment' } } } }) as unknown as Stripe.LineItem
+  const shipTo = { name: 'Jane Citizen', line1: '4 Oak Ave', suburb: 'Salisbury', state: 'SA', postcode: '5108' }
+
+  it('records a delivery: method, address, and the fee kept apart from the goods', async () => {
+    const s = session([li(ham, 'Christmas Ham', 1, 6000), li(beef, 'Diced Beef', 1, 4000, true), fee(1000)], {
+      metadata: { site_id: siteId, platform: 'awning', fulfilment: 'local_delivery', fulfilment_label: 'Local delivery', ship_to: JSON.stringify(shipTo) },
+    })
+    await receiveConnectEvent(event('checkout.session.completed', s))
+    const [o] = await orders()
+    expect(o).toMatchObject({ fulfilment: 'local_delivery', shipping_cents: 1000, subtotal_cents: 10000, total_cents: 11000 })
+    expect(o!.ship_to).toMatchObject({ postcode: '5108' })
+    // The fee is not a product: two goods lines, and no stock movement for it.
+    expect(o!.order_items).toHaveLength(2)
+    // GSTR 2001/8: 60% of the delivery follows the taxable ham. (6000 + 600) / 11 = 600.
+    expect(o!.gst_cents).toBe(600)
+  })
+
+  it('tells the butcher where to deliver, and the customer where it is going', async () => {
+    const s = session([li(beef, 'Diced Beef', 2, 2250, true), fee(800)], {
+      metadata: { site_id: siteId, platform: 'awning', fulfilment: 'local_delivery', fulfilment_label: 'Local delivery', ship_to: JSON.stringify(shipTo) },
+    })
+    await receiveConnectEvent(event('checkout.session.completed', s))
+    const owner = mail.sent.find((m) => m.to === 'owner@example.test')!
+    expect(owner.text).toMatch(/LOCAL DELIVERY — deliver to:\nJane Citizen\n4 Oak Ave\nSalisbury SA 5108/)
+    const customer = mail.sent.find((m) => m.to === 'jane@example.test')!
+    expect(customer.text).toMatch(/Delivering to:\nJane Citizen/)
+    // All fresh meat, so the delivery of it is GST-free too.
+    expect(customer.text).toMatch(/Local delivery.*GST-free/)
+  })
+
+  it('tells the customer where to collect a pickup order, and how', async () => {
+    await rawPrisma.store_settings.update({
+      where: { site_id: siteId },
+      data: { pickup_enabled: true, pickup_address: { text: '12 Main St, Salisbury SA 5108' }, pickup_instructions: 'Side door, 7am–5pm' },
+    })
+    await receiveConnectEvent(event('checkout.session.completed', session([li(ham, 'Christmas Ham', 1, 6800)], {
+      metadata: { site_id: siteId, platform: 'awning', fulfilment: 'pickup' },
+    })))
+    expect(mail.sent.find((m) => m.to === 'owner@example.test')!.text).toMatch(/^PICKUP — they will come to you\.$/m)
+    const customer = mail.sent.find((m) => m.to === 'jane@example.test')!
+    expect(customer.text).toMatch(/Collect it from:\n12 Main St, Salisbury SA 5108\nSide door, 7am–5pm/)
+  })
+})

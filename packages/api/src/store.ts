@@ -9,6 +9,7 @@ import {
   type ConnectedAccountStatus,
 } from '@awning/integrations/stripe-connect'
 import { logger } from '@awning/integrations/observability'
+import { loadFulfilment, parsePostcodeList } from '@awning/commerce'
 
 /**
  * M-03 -- connecting a tenant's Stripe account.
@@ -219,3 +220,107 @@ export async function disconnectStripe(db: PrismaTx, siteId: string): Promise<vo
 }
 
 export { fromAccount }
+
+// ------------------------------------------------------------------ fulfilment (M-09)
+
+
+export interface FulfilmentForm {
+  pickup: { enabled: boolean; address: string; instructions: string }
+  delivery: { enabled: boolean; postcodes: string; feeCents: number; minCents: number | null }
+  post: { enabled: boolean; name: string; priceCents: number; freeOverCents: number | null }
+}
+
+/**
+ * The fulfilment screen, pre-filled so the common case is one tick and a save.
+ *
+ * The acceptance criterion is a butcher setting up pickup-only in under two minutes. So
+ * the pickup address starts from the business address we already hold, and delivery and
+ * post start off. Nothing is switched ON for them: offering pickup is a commitment to
+ * have someone at the counter, and that is theirs to make.
+ */
+export async function fulfilmentForm(db: PrismaTx, siteId: string): Promise<FulfilmentForm> {
+  const [f, site, rate] = await Promise.all([
+    loadFulfilment(db, siteId),
+    db.sites.findUnique({ where: { id: siteId }, select: { business_address: true } }),
+    db.shipping_rates.findFirst({ where: { site_id: siteId, method: 'shipping' }, orderBy: { position: 'asc' } }),
+  ])
+  const a = site?.business_address as { suburb?: string; state?: string; postcode?: string } | null
+  const suggested = [a?.suburb, a?.state, a?.postcode].filter(Boolean).join(' ')
+  return {
+    pickup: { enabled: f.pickup.enabled, address: f.pickup.address ?? suggested, instructions: f.pickup.instructions ?? '' },
+    delivery: {
+      enabled: f.delivery.enabled,
+      postcodes: f.delivery.postcodes.join(', '),
+      feeCents: f.delivery.feeCents,
+      minCents: f.delivery.minCents,
+    },
+    post: {
+      enabled: !!rate?.is_active,
+      name: rate?.name ?? 'Standard post',
+      priceCents: rate?.price_cents ?? 1200,
+      freeOverCents: rate?.free_over_cents ?? null,
+    },
+  }
+}
+
+export type SaveProblem = { field: string; message: string }
+
+/**
+ * Saves the screen in one go, or not at all.
+ *
+ * Refuses a half-configured shop rather than saving it: "pickup on" with no address,
+ * or "delivery on" with no postcodes, is an option the customer can pick and nobody can
+ * fulfil.
+ */
+export async function saveFulfilment(
+  db: PrismaTx,
+  siteId: string,
+  form: FulfilmentForm,
+): Promise<{ ok: true } | { ok: false; problems: SaveProblem[] }> {
+  const problems: SaveProblem[] = []
+  const address = form.pickup.address.trim()
+  if (form.pickup.enabled && address.length < 5)
+    problems.push({ field: 'pickup.address', message: 'Add the address customers come to.' })
+
+  const parsed = parsePostcodeList(form.delivery.postcodes)
+  if (form.delivery.enabled) {
+    if (parsed.rejected.length)
+      problems.push({ field: 'delivery.postcodes', message: `We could not read: ${parsed.rejected.join(', ')}. Use four-digit postcodes, or a range like 5106-5110.` })
+    else if (parsed.postcodes.length === 0)
+      problems.push({ field: 'delivery.postcodes', message: 'List the postcodes you deliver to.' })
+  }
+  if (form.post.enabled && !form.post.name.trim())
+    problems.push({ field: 'post.name', message: 'Give the postage option a name.' })
+
+  if (!form.pickup.enabled && !form.delivery.enabled && !form.post.enabled)
+    problems.push({ field: 'all', message: 'Turn on at least one way for customers to get their order.' })
+
+  if (problems.length) return { ok: false, problems }
+
+  await ensureStoreSettings(db, siteId)
+  await db.store_settings.update({
+    where: { site_id: siteId },
+    data: {
+      pickup_enabled: form.pickup.enabled,
+      pickup_address: address ? { text: address.slice(0, 300) } : undefined,
+      pickup_instructions: form.pickup.instructions.trim().slice(0, 300) || null,
+      local_delivery_enabled: form.delivery.enabled,
+      local_delivery_postcodes: parsed.postcodes,
+      local_delivery_fee_cents: Math.max(0, Math.round(form.delivery.feeCents)),
+      local_delivery_min_cents: form.delivery.minCents && form.delivery.minCents > 0 ? Math.round(form.delivery.minCents) : null,
+    },
+  })
+
+  // One postage option from this screen. More is later; one covers the market.
+  const existing = await db.shipping_rates.findFirst({ where: { site_id: siteId, method: 'shipping' }, orderBy: { position: 'asc' } })
+  const rate = {
+    name: form.post.name.trim().slice(0, 80) || 'Standard post',
+    price_cents: Math.max(0, Math.round(form.post.priceCents)),
+    free_over_cents: form.post.freeOverCents && form.post.freeOverCents > 0 ? Math.round(form.post.freeOverCents) : null,
+    is_active: form.post.enabled,
+  }
+  if (existing) await db.shipping_rates.update({ where: { id: existing.id }, data: rate })
+  else if (form.post.enabled) await db.shipping_rates.create({ data: { site_id: siteId, method: 'shipping', ...rate } })
+
+  return { ok: true }
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { gstIncludedCents } from '../gst.js'
+import { gstIncludedCents, taxableDeliveryCents } from '../gst.js'
 
 /**
  * The ATO's total invoice rule: total the taxable lines, one eleventh, round once to
@@ -47,5 +47,37 @@ describe('rounding', () => {
   // because 11 is odd. Asserted so nobody spends an afternoon hunting a tie-break case.
   it('can never land exactly on half a cent', () => {
     for (let c = 0; c < 11 * 50; c++) expect((c / 11) % 1).not.toBe(0.5)
+  })
+})
+
+/**
+ * M-09. Delivery takes the GST character of the goods — GSTR 2001/8, paragraph 77:
+ * delivering GST-free food to the door is "a supply of delivered GST-free goods" with no
+ * GST on the delivery. A mix is apportioned by relative value (paragraph 98).
+ */
+describe('GST on a delivery fee', () => {
+  it('is nil when every item delivered is GST-free — the ATO’s own example', () => {
+    expect(gstIncludedCents([free(4500)], true, 1000)).toBe(0)
+  })
+
+  it('is one eleventh of the fee when every item is taxable', () => {
+    // $68 ham + $11 delivery, all taxable: 7900 / 11 = 718.18 → 718
+    expect(gstIncludedCents([taxable(6800)], true, 1100)).toBe(718)
+  })
+
+  it('is apportioned by value on a mixed order', () => {
+    // $60 taxable + $40 GST-free, $10 delivery: 60% of the delivery is taxable.
+    // Taxable value 6000 + 600 = 6600 → GST 600 exactly.
+    expect(gstIncludedCents([taxable(6000), free(4000)], true, 1000)).toBe(600)
+    expect(taxableDeliveryCents([taxable(6000), free(4000)], 1000)).toBe(600)
+  })
+
+  it('still rounds once, over goods and delivery together', () => {
+    // 3 × $1.05 taxable + $1.05 delivery: 420 / 11 = 38.18 → 38, one rounding.
+    expect(gstIncludedCents([taxable(105), taxable(105), taxable(105)], true, 105)).toBe(38)
+  })
+
+  it('is nil for a business that is not registered, delivery or not', () => {
+    expect(gstIncludedCents([taxable(6800)], false, 1100)).toBe(0)
   })
 })

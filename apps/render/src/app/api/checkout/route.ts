@@ -18,6 +18,20 @@ const REFUSED: Record<CheckoutRefusal, [number, string]> = {
   'no-account': [409, 'Online ordering is not open yet. Please ring us to order.'],
   'empty-cart': [400, 'Your cart is empty.'],
   'below-minimum': [400, 'The order total is too small to pay by card. Add another item.'],
+  fulfilment: [400, 'Choose how you would like to get your order.'],
+}
+
+/** The shopper's choice, as posted. Every part of it is re-checked by the resolver. */
+async function readChoice(req: Request) {
+  try {
+    const b = (await req.json()) as { optionId?: unknown; address?: unknown }
+    return {
+      optionId: typeof b.optionId === 'string' ? b.optionId.slice(0, 60) : '',
+      address: b.address && typeof b.address === 'object' ? (b.address as Record<string, string>) : null,
+    }
+  } catch {
+    return { optionId: '', address: null }
+  }
 }
 
 export async function POST(req: Request) {
@@ -36,11 +50,14 @@ export async function POST(req: Request) {
   }
 
   const { cart } = await readVisitorCart(shop.siteId, secret)
+  const choice = await readChoice(req)
   try {
-    const r = await storefront((db) => createStorefrontCheckout(db, shop.siteId, cart, requestOrigin(req)))
+    const r = await storefront((db) => createStorefrontCheckout(db, shop.siteId, cart, requestOrigin(req), choice))
     if (!r.ok) {
-      const [status, message] = REFUSED[r.refusal]
-      return json({ error: message, refusal: r.refusal }, status)
+      const [status, fallback] = REFUSED[r.refusal]
+      // A fulfilment refusal carries its own reason — "we don't deliver to 5000" — which
+      // is more use to a shopper than any generic line.
+      return json({ error: r.message ?? fallback, refusal: r.refusal }, status)
     }
     logger.info('checkout.session_created', { site_id: shop.siteId })
     return json({ url: r.url })

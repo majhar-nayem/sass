@@ -22,10 +22,42 @@
 export function gstIncludedCents(
   lines: Array<{ lineCents: number; gstFree: boolean }>,
   gstRegistered: boolean,
+  deliveryCents = 0,
 ): number {
   if (!gstRegistered) return 0
-  const taxableCents = lines.filter((l) => !l.gstFree).reduce((n, l) => n + l.lineCents, 0)
-  // Integer cents throughout, so the only rounding is this one — and Math.round rounds
-  // a positive half upwards, which is the ATO's rule.
-  return Math.round(taxableCents / 11)
+  return Math.round(taxableValue(lines, deliveryCents) / 11)
+}
+
+/**
+ * The GST-inclusive value of the taxable part of an order, delivery included.
+ *
+ * Delivery takes the GST character of the goods it delivers (M-09). The ATO's ruling on
+ * mixed and composite supplies, GSTR 2001/8, paragraph 77: a business delivering
+ * GST-free food to the customer's door "is making a supply of delivered GST-free goods,
+ * and has no liability to account for GST on the delivery of them" — the delivery is
+ * "integral, ancillary or incidental". So:
+ *
+ *  - all goods GST-free → the delivery fee is GST-free
+ *  - all goods taxable  → the delivery fee is taxable
+ *  - a mix              → the fee is apportioned by the goods' relative value, which the
+ *                         same ruling (paragraph 98) accepts as a reasonable method
+ *
+ * The natural shortcut — delivery is always taxable — over-reports GST for every butcher
+ * who delivers fresh meat. The opposite under-reports on a mixed order.
+ *
+ * Returned unrounded: it feeds the single rounding in gstIncludedCents.
+ */
+export function taxableValue(lines: Array<{ lineCents: number; gstFree: boolean }>, deliveryCents = 0): number {
+  const goods = lines.reduce((n, l) => n + l.lineCents, 0)
+  const taxableGoods = lines.filter((l) => !l.gstFree).reduce((n, l) => n + l.lineCents, 0)
+  if (goods === 0) return 0
+  return taxableGoods + (deliveryCents * taxableGoods) / goods
+}
+
+/** The part of a delivery fee that is taxable, in cents, for showing on the receipt. */
+export function taxableDeliveryCents(lines: Array<{ lineCents: number; gstFree: boolean }>, deliveryCents: number): number {
+  const goods = lines.reduce((n, l) => n + l.lineCents, 0)
+  if (goods === 0 || deliveryCents === 0) return 0
+  const taxableGoods = lines.filter((l) => !l.gstFree).reduce((n, l) => n + l.lineCents, 0)
+  return Math.round((deliveryCents * taxableGoods) / goods)
 }

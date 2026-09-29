@@ -53,12 +53,14 @@ async function send(
       order_number: true, total_cents: true, gst_cents: true, email: true, phone: true,
       customer_name: true, owner_notified_at: true, customer_notified_at: true,
       paid_at: true, created_at: true,
+      fulfilment: true, ship_to: true, shipping_cents: true, notes: true,
       order_items: {
         select: { title: true, quantity: true, unit_price_cents: true, line_total_cents: true, gst_free: true },
       },
       sites: {
         select: {
           name: true, business_email: true, business_phone: true,
+          store_settings: { select: { pickup_address: true, pickup_instructions: true } },
           organizations: {
             select: { billing_email: true, gst_registered: true, abn: true, legal_name: true, timezone: true },
           },
@@ -82,7 +84,19 @@ async function send(
     })),
     totalCents: o.total_cents,
     buyer: { name: o.customer_name, email: o.email || null },
+    delivery: o.shipping_cents > 0 ? { label: o.notes ?? 'Delivery', cents: o.shipping_cents } : null,
   })
+
+  // M-09. What was arranged, instead of "the owner will be in touch".
+  const shipTo = o.ship_to as { name?: string; line1?: string; line2?: string | null; suburb?: string; state?: string; postcode?: string } | null
+  const addressText = shipTo
+    ? [shipTo.name, shipTo.line1, shipTo.line2, `${shipTo.suburb ?? ''} ${shipTo.state ?? ''} ${shipTo.postcode ?? ''}`.trim()]
+        .filter(Boolean)
+        .join('\n')
+    : null
+  const pickupAt = (o.sites.store_settings?.pickup_address as { text?: string } | null)?.text ?? null
+  const pickupHow = o.sites.store_settings?.pickup_instructions ?? null
+  const isPickup = o.fulfilment === 'pickup'
   const total = `Total ${money(o.total_cents)}${o.sites.organizations.gst_registered && o.gst_cents > 0 ? ` (includes ${money(o.gst_cents)} GST)` : ''}`
   const ownerTo = o.sites.business_email ?? o.sites.organizations.billing_email
 
@@ -96,6 +110,10 @@ async function send(
       subject: `New order #${o.order_number}${o.phone ? ` — ${o.phone}` : ''}${o.customer_name ? ` (${o.customer_name})` : ''}`,
       text: [
         `New order #${o.order_number} from your website. It is paid.`,
+        '',
+        // First, because it decides what happens next: box it for the counter, or load
+        // the van.
+        ...(isPickup ? ['PICKUP — they will come to you.'] : [`${o.notes?.toUpperCase() ?? 'DELIVER'} — deliver to:`, addressText ?? '(no address recorded)']),
         '',
         ...(oversold.length
           ? [
@@ -113,7 +131,7 @@ async function send(
         `Phone:   ${o.phone ?? '—'}`,
         `Email:   ${o.email || '—'}`,
         '',
-        'Get in touch with them to arrange collection or delivery.',
+        isPickup ? 'Let them know when it is ready to collect.' : 'Let them know when it is on its way.',
         ...(receipt.problems.length
           ? [
               '',
@@ -140,7 +158,9 @@ async function send(
       subject: `Your order from ${o.sites.name} (#${o.order_number})`,
       text: [
         `Thanks${o.customer_name ? `, ${o.customer_name.split(' ')[0]}` : ''} — ${o.sites.name} has your order.`,
-        `${o.sites.name} will be in touch about collection or delivery.`,
+        ...(isPickup
+          ? ['Collect it from:', pickupAt ?? o.sites.name, ...(pickupHow ? [pickupHow] : []), `${o.sites.name} will let you know when it is ready.`]
+          : ['Delivering to:', addressText ?? '(your address)', `${o.sites.name} will let you know when it is on its way.`]),
         ...(o.sites.business_phone ? [`Questions? Ring them on ${o.sites.business_phone}.`] : []),
         '',
         '────────────────────────────────────────────',

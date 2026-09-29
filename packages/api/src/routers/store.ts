@@ -5,6 +5,8 @@ import { adminProcedure, orgProcedure, router, type OrgContext } from '../trpc.j
 import {
   disconnectStripe,
   ensureStoreSettings,
+  fulfilmentForm,
+  saveFulfilment,
   paymentsFrom,
   startStripeOnboarding,
   syncStripeAccount,
@@ -57,6 +59,38 @@ export const storeRouter = router({
         refreshUrl: `${base}${path}?stripe=refresh`,
         returnUrl: `${base}${path}?stripe=return`,
       })
+    }),
+
+  /** M-09. How customers get their orders. */
+  fulfilment: orgProcedure.input(siteInput).query(async ({ ctx, input }) => {
+    const c = ctx as unknown as OrgContext
+    await ownedSite(c, input.siteId)
+    return fulfilmentForm(c.db, input.siteId)
+  }),
+
+  saveFulfilment: adminProcedure
+    .input(
+      siteInput.extend({
+        pickup: z.object({ enabled: z.boolean(), address: z.string().max(300), instructions: z.string().max(300) }),
+        delivery: z.object({
+          enabled: z.boolean(),
+          postcodes: z.string().max(4000),
+          feeCents: z.number().int().min(0).max(100_000),
+          minCents: z.number().int().min(0).max(1_000_000).nullable(),
+        }),
+        post: z.object({
+          enabled: z.boolean(),
+          name: z.string().max(80),
+          priceCents: z.number().int().min(0).max(100_000),
+          freeOverCents: z.number().int().min(0).max(10_000_000).nullable(),
+        }),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const c = ctx as unknown as OrgContext
+      await ownedSite(c, input.siteId)
+      const { siteId, ...form } = input
+      return saveFulfilment(c.db, siteId, form)
     }),
 
   disconnectStripe: adminProcedure.input(siteInput).mutation(async ({ ctx, input }) => {

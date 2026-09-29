@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers'
-import { applyCartAction, cartCookie, resolveCart, signCart, storefront, type CartAction } from '@awning/commerce'
+import { applyCartAction, cartCookie, fulfilmentOptions, gstIncludedCents, loadFulfilment, resolveCart, signCart, storefront, type Cart, type CartAction } from '@awning/commerce'
 import { cartSecret, isProduction, NO_STORE, readVisitorCart, sameOrigin, shopForHost } from '@/lib/shop'
 
 export const dynamic = 'force-dynamic'
@@ -28,13 +28,27 @@ async function context(req: Request) {
   return { shop, secret, name, cart } as const
 }
 
+/** The cart, plus how it can be got to the customer at its current value. */
+async function view(siteId: string, cart: Cart, acceptsOrders: boolean) {
+  return storefront(async (db) => {
+    const resolved = await resolveCart(db, siteId, cart)
+    // Each option carries its own order total and GST, computed here with the real rule:
+    // a delivery fee's GST follows the goods it delivers, so the total GST depends on
+    // which option is chosen. Computed on the server so the rule never has to ship to
+    // the browser (it would drag database code into the client bundle).
+    const fulfilment = fulfilmentOptions(await loadFulfilment(db, siteId), resolved.subtotalCents).map((o) => ({
+      ...o,
+      orderTotalCents: resolved.subtotalCents + o.priceCents,
+      orderGstCents: gstIncludedCents(resolved.lines, resolved.gstRegistered, o.priceCents),
+    }))
+    return { ...resolved, acceptsOrders, fulfilment }
+  })
+}
+
 export async function GET(req: Request) {
   const c = await context(req)
   if ('error' in c) return c.error
-  return json({
-    ...(await storefront((db) => resolveCart(db, c.shop.siteId, c.cart))),
-    acceptsOrders: c.shop.status.acceptsOrders,
-  })
+  return json(await view(c.shop.siteId, c.cart, c.shop.status.acceptsOrders))
 }
 
 function parseAction(body: unknown): CartAction | null {
@@ -76,8 +90,5 @@ export async function POST(req: Request) {
   const signed = await signCart(cart, c.secret)
   ;(await cookies()).set(c.name, signed, cartCookie(isProduction()).attributes)
 
-  return json({
-    ...(await storefront((db) => resolveCart(db, c.shop.siteId, cart))),
-    acceptsOrders: c.shop.status.acceptsOrders,
-  })
+  return json(await view(c.shop.siteId, cart, c.shop.status.acceptsOrders))
 }
