@@ -6,3 +6,5 @@ export { runDunning, decideDunning, restoreAfterPayment, GRACE_DAYS, type Dunnin
 export { audit, startImpersonation, endImpersonation, grantAiCredit, listOrgs, auditTrail, ImpersonationRefused, suspendForAup, restoreAfterAup } from './admin.js'
 export { collectDigest, renderDigest, digestAlerts, sendDigest, runCanaries, type DigestData } from './monitoring.js'
 export { LEGAL_DOCUMENTS, legalDocument, outstandingDocuments, acceptCurrentDocuments, acceptanceHistory, acceptanceMatchesCurrentText, requiredDocuments, stillOutstanding, type LegalDocument } from './legal/index.js'
+export { ensureStoreSettings, startStripeOnboarding, syncStripeAccount, applyAccountStatus, disconnectStripe, paymentsFrom, type StorePayments, type PaymentsState } from './store.js'
+export { handleConnectEvent, CONNECT_EVENTS, type ConnectOutcome } from './connect-webhook.js'
