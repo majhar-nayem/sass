@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'node:crypto'
-import { runDunning, sendDigest, sweepDomains } from '@awning/api'
+import { retryUnnotifiedOrders, runDunning, sendDigest, sweepDomains } from '@awning/api'
 import { withoutOrgContext } from '@awning/db'
 import { reportError, requestIdFrom, runWithRequestContext } from '@awning/integrations/observability'
 
@@ -43,6 +43,10 @@ async function runJobs(job: string) {
       out.domains = await withoutOrgContext('cron', (db) => sweepDomains(db))
     if (job === 'all' || job === 'dunning')
       out.dunning = await withoutOrgContext('cron', (db) => runDunning(db))
+    // Paid orders whose owner email failed. Before the digest, so it reports what is
+    // still missing after the retry rather than before it.
+    if (job === 'all' || job === 'orders')
+      out.orders = await withoutOrgContext('cron', (db) => retryUnnotifiedOrders(db))
     // Digest last: it reports on what the jobs above just did.
     if (job === 'all' || job === 'digest')
       out.digest = await withoutOrgContext('cron', (db) => sendDigest(db))

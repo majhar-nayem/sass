@@ -9,7 +9,7 @@ const config = {
   // directory and every @awning/* package is left out of the image.
   output: 'standalone',
   outputFileTracingRoot: path.join(import.meta.dirname, '../..'),
-  transpilePackages: ['@awning/api', '@awning/auth', '@awning/db', '@awning/spec', '@awning/tenancy', '@awning/ai', '@awning/integrations'],
+  transpilePackages: ['@awning/api', '@awning/commerce', '@awning/auth', '@awning/db', '@awning/spec', '@awning/tenancy', '@awning/ai', '@awning/integrations'],
   poweredByHeader: false,
   serverExternalPackages: ['@prisma/client', 'ioredis', 'better-auth', 'sharp', 'nodemailer'],
   eslint: { ignoreDuringBuilds: true }, // eslint.config.js at the root is authoritative

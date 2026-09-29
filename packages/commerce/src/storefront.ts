@@ -1,5 +1,6 @@
 import { withoutOrgContext, type PrismaTx } from '@awning/db'
 import { MAX_QTY, normaliseCart, type Cart } from './cart-cookie.js'
+import { gstIncludedCents } from './gst.js'
 
 /**
  * M-05 -- what a visitor to a tenant's site can see and buy.
@@ -217,9 +218,7 @@ export async function resolveCart(db: PrismaTx, siteId: string, cart: Cart): Pro
   }
 
   const subtotalCents = lines.reduce((n, l) => n + l.lineCents, 0)
-  const gstCents = gstRegistered
-    ? lines.filter((l) => !l.gstFree).reduce((n, l) => n + Math.round(l.lineCents / 11), 0)
-    : 0
+  const gstCents = gstIncludedCents(lines, gstRegistered)
 
   return {
     lines,

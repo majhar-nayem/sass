@@ -61,3 +61,26 @@ export async function withoutOrgContext<T>(
   void reason
   return fn(rawPrisma as unknown as PrismaTx)
 }
+
+/**
+ * The same escape hatch, but inside one transaction.
+ *
+ * For work that must be all-or-nothing without an org: a webhook that claims an event
+ * id and then acts on it. Done as two separate writes, a failure leaves the claim behind
+ * and the provider's retry is then refused as a duplicate — so the event is lost for
+ * good. Inside one transaction the failure rolls the claim back, and the retry runs.
+ *
+ * Keep network calls OUT of `fn`: a transaction held open across a request to Stripe
+ * holds its row locks for as long as Stripe takes to answer.
+ */
+export async function withoutOrgContextTx<T>(
+  reason: 'webhook' | 'cron',
+  fn: (db: PrismaTx) => Promise<T>,
+  opts: { timeoutMs?: number } = {},
+): Promise<T> {
+  const { rawPrisma } = await import('./client.js')
+  void reason
+  return rawPrisma.$transaction((tx) => fn(tx as unknown as PrismaTx), {
+    timeout: opts.timeoutMs ?? 15_000,
+  })
+}
