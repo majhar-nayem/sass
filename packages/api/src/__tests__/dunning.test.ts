@@ -247,6 +247,31 @@ describe('one failing org does not stop the sweep', () => {
     expect(site?.status).toBe('suspended')
   })
 
+  // The second window: deleted AFTER the snapshot is taken but before its turn. The
+  // snapshot used to load each org as a relation, and Prisma threw "required to return
+  // data, got null" from the snapshot itself — stopping the sweep for everyone.
+  it('skips an org deleted after the snapshot, and still reaches the rest', async () => {
+    const real = rawPrisma as unknown as PrismaTx
+    const subs = new Proxy(real.subscriptions, {
+      get(target, prop) {
+        if (prop === 'findMany')
+          return async (args: Parameters<typeof target.findMany>[0]) => {
+            const rows = await target.findMany(args as never)
+            const mine = rows.filter((r: { org_id: string }) => r.org_id === ours || r.org_id === doomed)
+            await rawPrisma.organizations.deleteMany({ where: { id: doomed } }) // gone, mid-run
+            return mine.sort((a: { org_id: string }) => (a.org_id === doomed ? -1 : 1))
+          }
+        return Reflect.get(target, prop)
+      },
+    })
+    const db = new Proxy(real, { get: (t, p) => (p === 'subscriptions' ? subs : Reflect.get(t, p)) }) as PrismaTx
+    const run = await runDunning(db)
+    expect(run.skipped).toBe(1)
+    expect(run.failed).toBe(0)
+    const site = await rawPrisma.sites.findUnique({ where: { id: oursSite }, select: { status: true } })
+    expect(site?.status).toBe('suspended')
+  })
+
   it('counts the failure instead of hiding it', async () => {
     const run = await runDunning(racingDb())
     expect(run.failed).toBe(1)

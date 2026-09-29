@@ -96,6 +96,8 @@ export interface DunningRun {
   suspended: number
   /** Orgs whose step threw. Reported individually; they never stop the rest. */
   failed: number
+  /** Orgs that no longer exist by the time they are reached. Nothing to dun. */
+  skipped: number
 }
 
 /**
@@ -108,23 +110,22 @@ export interface DunningRun {
 export async function runDunning(db: PrismaTx, now = new Date()): Promise<DunningRun> {
   const appUrl = process.env.APP_URL ?? 'http://localhost:3000'
 
+  // The snapshot carries no relations. Prisma loads a relation with a SECOND query, so
+  // an org deleted between the two made the snapshot itself throw "Field organizations
+  // is required to return data, got null" — before any per-org protection below could
+  // run, and stopping dunning for everyone. Each org is loaded in its own step instead.
   const overdue = await db.subscriptions.findMany({
     where: { status: 'past_due' },
-    select: {
-      org_id: true,
-      updated_at: true,
-      dunning_emails_sent: true,
-      organizations: {
-        select: {
-          name: true,
-          billing_email: true,
-          sites: { select: { id: true, name: true, status: true } },
-        },
-      },
-    },
+    select: { org_id: true, updated_at: true, dunning_emails_sent: true },
   })
 
-  const run: DunningRun = { considered: overdue.length, emailed: 0, suspended: 0, failed: 0 }
+  const run: DunningRun = {
+    considered: overdue.length,
+    emailed: 0,
+    suspended: 0,
+    failed: 0,
+    skipped: 0,
+  }
 
   // One org at a time, each in its own try. The sweep is global, so a single row that
   // vanished mid-run (a cancellation, a deleted org) used to abort it — and every
@@ -145,21 +146,24 @@ export async function runDunning(db: PrismaTx, now = new Date()): Promise<Dunnin
 /** One org's step. Throws on failure; the caller isolates it. */
 async function dunOne(
   db: PrismaTx,
-  sub: {
-    org_id: string
-    updated_at: Date
-    dunning_emails_sent: unknown
-    organizations: {
-      name: string
-      billing_email: string | null
-      sites: Array<{ id: string; name: string; status: string }>
-    }
-  },
+  sub: { org_id: string; updated_at: Date; dunning_emails_sent: unknown },
   now: Date,
   appUrl: string,
   run: DunningRun,
 ): Promise<void> {
-  const org = sub.organizations
+  const org = await db.organizations.findUnique({
+    where: { id: sub.org_id },
+    select: {
+      name: true,
+      billing_email: true,
+      sites: { select: { id: true, name: true, status: true } },
+    },
+  })
+  // Deleted since the snapshot — a cancellation, or a test tidying up after itself.
+  if (!org) {
+    run.skipped++
+    return
+  }
   const site = org.sites[0]
   const daysPastDue = Math.floor((now.getTime() - sub.updated_at.getTime()) / 864e5)
 
