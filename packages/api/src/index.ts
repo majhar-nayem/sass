@@ -8,3 +8,4 @@ export { collectDigest, renderDigest, digestAlerts, sendDigest, runCanaries, typ
 export { LEGAL_DOCUMENTS, legalDocument, outstandingDocuments, acceptCurrentDocuments, acceptanceHistory, acceptanceMatchesCurrentText, requiredDocuments, stillOutstanding, type LegalDocument } from './legal/index.js'
 export { ensureStoreSettings, startStripeOnboarding, syncStripeAccount, applyAccountStatus, disconnectStripe, paymentsFrom, type StorePayments, type PaymentsState } from './store.js'
 export { handleConnectEvent, CONNECT_EVENTS, type ConnectOutcome } from './connect-webhook.js'
+export { parseProductCsv, parseCsv, parseMoneyCents, previewProductCsv, importProducts, listProducts, listCategories, attachProductImage, type ParsedProduct, type RowProblem, type ImportSummary } from './products/index.js'
