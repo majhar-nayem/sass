@@ -51,6 +51,19 @@ scheme. Redis is a cache, not a store: if it is unreachable the renderer resolve
 tenants straight from Postgres, which is correct and slower, so the deep health check
 reports an absent cache as `off` rather than failing.
 
+### The renderer's Stripe key **[needs account]**
+Checkout starts on a customer's site, so the renderer talks to Stripe — but it serves
+public websites, so it never gets `STRIPE_SECRET_KEY`. Create a **restricted key** for it:
+
+- Checkout Sessions: **Write**
+- the same permission for **connected accounts** (it creates sessions on the tenant's
+  account via the `Stripe-Account` header)
+- everything else: **None**
+
+Set it as `STRIPE_CHECKOUT_KEY` on `awning-render` only. Production refuses an `sk_` key
+here rather than tolerating it, because it would work and nobody would notice the
+protection had gone. Also set a `CART_SECRET` of 32+ characters on the renderer.
+
 ### R2, Cloudflare, Stripe, Resend, Anthropic **[needs account]**
 Keys go in `.env.production` (gitignored). `.env.example` is the full list.
 

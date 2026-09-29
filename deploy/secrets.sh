@@ -11,9 +11,10 @@ APP="${1:?usage: secrets.sh <fly-app-name> [env-file]}"
 ENV_FILE="${2:-.env.production}"
 [ -f "$ENV_FILE" ] || { echo "no $ENV_FILE — copy .env.example and fill it in"; exit 1; }
 
-# Which variables each app actually needs. The renderer never sees Stripe or Anthropic
-# keys: it serves public websites, and a key it cannot use is a key that cannot leak
-# from it.
+# Which variables each app actually needs. The renderer serves public websites, so it
+# gets the smallest set that works: no Anthropic key, no Stripe SECRET key, no Cloudflare
+# token. It does get STRIPE_CHECKOUT_KEY, which must be a restricted key limited to
+# Checkout Sessions — a key it cannot misuse is a key that cannot leak much from it.
 # SENTRY_AUTH_TOKEN is deliberately absent: it uploads source maps at BUILD time and a
 # running machine has no use for it, so it does not belong in the runtime secret set.
 COMMON="DATABASE_URL APP_DATABASE_URL DIRECT_URL REDIS_URL SITES_ROOT_DOMAIN APP_URL
@@ -27,7 +28,7 @@ APP_ONLY="BETTER_AUTH_SECRET ANTHROPIC_API_KEY AI_DAILY_CEILING_CENTS
           PREVIEW_BASE_URL CANARY_BASE_URL"
 
 case "$APP" in
-  *render*) WANTED="$COMMON CART_SECRET" ;;
+  *render*) WANTED="$COMMON CART_SECRET STRIPE_CHECKOUT_KEY" ;;
   *)        WANTED="$COMMON $APP_ONLY" ;;
 esac
 

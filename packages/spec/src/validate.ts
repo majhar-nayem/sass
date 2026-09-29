@@ -134,7 +134,7 @@ export function validateSpec(input: unknown, ctx: ValidationCtx = {}): Validatio
   // this list from the day O-05 added the route.
   const RESERVED_PATHS = [
     '/preview', '/api', '/_next', '/sitemap.xml', '/robots.txt',
-    '/privacy', '/shop', '/cart', '/asset',
+    '/privacy', '/shop', '/cart', '/checkout', '/asset',
   ]
   for (const page of spec.pages)
     if (RESERVED_PATHS.some((r) => page.path === r || page.path.startsWith(`${r}/`)))

@@ -158,6 +158,15 @@ export function Payments({
         )}
       </div>
 
+      {status.state === 'ready' && (
+        // Afterpay is switched on in the business's own Stripe account, not here: on
+        // Connect Standard the account is theirs, and checkout shows whatever they enable.
+        <p className="mt-6 text-sm text-muted">
+          To offer Afterpay, switch it on in your Stripe dashboard under Settings → Payment methods.
+          It then appears at checkout automatically for orders Afterpay will accept.
+        </p>
+      )}
+
       <p className="mt-10 border-t border-rule pt-6 text-sm text-muted">
         The Stripe account is yours. It stays yours if you ever leave us, along with your payout
         history and your customers’ receipts.
